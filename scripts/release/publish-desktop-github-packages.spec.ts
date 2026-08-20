@@ -5,10 +5,12 @@ import { describe, expect, it } from 'vitest'
 import {
   authorizeDesktopGithubPublish,
   desktopPublishTags,
+  desktopInstallerPlatformId,
   desktopNpmPublishArgs,
   desktopWindowsInstallerName,
   githubPackagesDesktopManifest,
   githubPackagesDesktopName,
+  githubPackagesDesktopPlatformName,
   listDesktopInstallers,
 } from './publish-desktop-github-packages.ts'
 
@@ -49,18 +51,18 @@ describe('desktop GitHub Packages publish', () => {
   })
 
   it('writes a GitHub Packages manifest that ships only the installer', () => {
+    expect(desktopInstallerPlatformId('DeepSeek Harness-0.1.0-rc.8-linux-x86_64.AppImage', '0.1.0-rc.8'))
+      .toBe('linux-x86_64')
+    expect(githubPackagesDesktopPlatformName('zous168', 'win-x64')).toBe('@zous168/dsh-desktop-win-x64')
     expect(githubPackagesDesktopManifest({
       owner: 'zous168',
       repository: 'zous168/deepseek-harness-client',
       version: '0.1.0-rc.8',
-      installers: [
-        'DeepSeek Harness-0.1.0-rc.8-win-x64.exe',
-        'DeepSeek Harness-0.1.0-rc.8-mac-arm64.dmg',
-      ],
+      installer: 'DeepSeek Harness-0.1.0-rc.8-win-x64.exe',
     })).toEqual({
-      name: '@zous168/dsh-desktop',
+      name: '@zous168/dsh-desktop-win-x64',
       version: '0.1.0-rc.8',
-      description: 'Desktop installers for the DeepSeek Harness window',
+      description: 'DeepSeek Harness win-x64 installer',
       publishConfig: { registry: 'https://npm.pkg.github.com' },
       repository: {
         type: 'git',
@@ -68,7 +70,6 @@ describe('desktop GitHub Packages publish', () => {
       },
       files: [
         'DeepSeek Harness-0.1.0-rc.8-win-x64.exe',
-        'DeepSeek Harness-0.1.0-rc.8-mac-arm64.dmg',
       ],
       license: 'MIT',
     })

@@ -41,6 +41,37 @@ export function githubPackagesDesktopName(owner: string): string {
 }
 
 /**
+ * Platform id encoded in an electron-builder artifact name.
+ * @param installer - `DeepSeek Harness-<version>-<id>.<ext>`.
+ * @param version - repository version.
+ * @returns `win-x64`, `mac-arm64`, `linux-x86_64`, or another packed id.
+ */
+export function desktopInstallerPlatformId(installer: string, version: string): string {
+  const prefix = `DeepSeek Harness-${version}-`
+  if (!installer.startsWith(prefix)) {
+    throw new Error(`desktop publish: ${installer} is not a DeepSeek Harness ${version} installer`)
+  }
+  const stem = installer.slice(prefix.length)
+  for (const ext of ['.exe', '.dmg', '.AppImage'] as const) {
+    if (stem.endsWith(ext)) return stem.slice(0, -ext.length)
+  }
+  throw new Error(`desktop publish: ${installer} has no installer extension`)
+}
+
+/**
+ * GitHub Packages npm name for one host-OS installer.
+ * GitHub Packages rejects a tarball over 256 MiB, so each installer is its own package.
+ * @param owner - GitHub owner.
+ * @param platformId - `desktopInstallerPlatformId` result.
+ * @returns a scoped package name.
+ */
+export function githubPackagesDesktopPlatformName(owner: string, platformId: string): string {
+  if (owner === '') throw new Error('desktop publish: GitHub owner is empty')
+  if (platformId === '') throw new Error('desktop publish: platform id is empty')
+  return `@${owner}/dsh-desktop-${platformId}`
+}
+
+/**
  * electron-builder artifact name for the Windows NSIS installer.
  * @param version - repository version.
  * @returns the file name under `apps/desktop/release`.
@@ -98,18 +129,19 @@ export function githubPackagesDesktopManifest(options: {
   owner: string
   repository: string
   version: string
-  installers: readonly string[]
+  installer: string
 }): Record<string, unknown> {
+  const platformId = desktopInstallerPlatformId(options.installer, options.version)
   return {
-    name: githubPackagesDesktopName(options.owner),
+    name: githubPackagesDesktopPlatformName(options.owner, platformId),
     version: options.version,
-    description: 'Desktop installers for the DeepSeek Harness window',
+    description: `DeepSeek Harness ${platformId} installer`,
     publishConfig: { registry: 'https://npm.pkg.github.com' },
     repository: {
       type: 'git',
       url: `git+https://github.com/${options.repository}.git`,
     },
-    files: [...options.installers],
+    files: [options.installer],
     license: 'MIT',
   }
 }
@@ -133,51 +165,55 @@ export function publishDesktopGithubPackages(request: DesktopGithubPublishReques
     if (bytes.length === 0) throw new Error(`desktop publish: ${installerPath} is empty`)
   }
 
-  const staging = mkdtempSync(join(tmpdir(), 'dsh-desktop-gh-packages-'))
-  try {
-    writeFileSync(
-      join(staging, 'package.json'),
-      `${JSON.stringify(githubPackagesDesktopManifest({
-        owner: request.owner,
-        repository: request.repository,
-        version,
-        installers,
-      }), null, 2)}\n`,
-    )
-    for (const [index, installerPath] of installerPaths.entries()) {
-      const name = installers[index]
-      if (name === undefined) continue
-      cpSync(installerPath, join(staging, name))
-    }
-    const published = attemptEchoed('npm', desktopNpmPublishArgs(version), {
-      cwd: staging,
-      env: process.env,
-    })
-    if (published.status !== 0) {
-      throw new Error(`desktop publish: npm publish failed:\n${published.stdout}${published.stderr}`)
-    }
-  } finally {
-    rmSync(staging, { recursive: true, force: true })
-  }
-
   const tag = request.refName
   const title = `DeepSeek Harness ${version}`
   const names = installers.map(name => basename(name)).join(', ')
+  const packageNames = installers.map(name => (
+    githubPackagesDesktopPlatformName(request.owner, desktopInstallerPlatformId(name, version))
+  ))
   const existing = attempt('gh', ['release', 'view', tag, '--json', 'tagName'])
   if (existing.status === 0) {
     const uploaded = attemptEchoed('gh', ['release', 'upload', tag, ...installerPaths, '--clobber'])
     if (uploaded.status !== 0) {
       throw new Error(`desktop publish: gh release upload failed:\n${uploaded.stdout}${uploaded.stderr}`)
     }
-    return
+  } else {
+    const created = attemptEchoed('gh', [
+      'release', 'create', tag, ...installerPaths,
+      '--title', title,
+      ...(version.includes('-') ? ['--prerelease'] : []),
+      '--notes', `Desktop installers ${names}. GitHub Packages publishes each as ${packageNames.join(', ')}.`,
+    ])
+    if (created.status !== 0) {
+      throw new Error(`desktop publish: gh release create failed:\n${created.stdout}${created.stderr}`)
+    }
   }
-  const created = attemptEchoed('gh', [
-    'release', 'create', tag, ...installerPaths,
-    '--title', title,
-    '--notes', `Desktop installers ${names}. The same bytes are published to GitHub Packages as ${githubPackagesDesktopName(request.owner)}.`,
-  ])
-  if (created.status !== 0) {
-    throw new Error(`desktop publish: gh release create failed:\n${created.stdout}${created.stderr}`)
+
+  for (const [index, installerPath] of installerPaths.entries()) {
+    const installer = installers[index]
+    if (installer === undefined) continue
+    const staging = mkdtempSync(join(tmpdir(), 'dsh-desktop-gh-packages-'))
+    try {
+      writeFileSync(
+        join(staging, 'package.json'),
+        `${JSON.stringify(githubPackagesDesktopManifest({
+          owner: request.owner,
+          repository: request.repository,
+          version,
+          installer,
+        }), null, 2)}\n`,
+      )
+      cpSync(installerPath, join(staging, installer))
+      const published = attemptEchoed('npm', desktopNpmPublishArgs(version), {
+        cwd: staging,
+        env: process.env,
+      })
+      if (published.status !== 0) {
+        throw new Error(`desktop publish: npm publish ${installer} failed:\n${published.stdout}${published.stderr}`)
+      }
+    } finally {
+      rmSync(staging, { recursive: true, force: true })
+    }
   }
 }
 

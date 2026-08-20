@@ -10,7 +10,7 @@ English | [中文](2026-08-20-desktop-github-packages-release.zh.md)
 
 ## Decision
 
-[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) is a dispatch-only native pack matrix plus a credentialed publish job. Pack runs `pnpm run build:official` then `pnpm run desktop:pack` on `windows-2025` (NSIS `.exe`), `macos-15` (unsigned host-arch `.dmg`), and `ubuntu-24.04` (host-arch `.AppImage`) and uploads each artifact. Publish downloads those bytes and runs [`scripts/release/publish-desktop-github-packages.ts`](../../../../scripts/release/publish-desktop-github-packages.ts): it publishes `@<owner>/dsh-desktop` to `https://npm.pkg.github.com` (the owner scope is the GitHub Packages rule) with the present installers as the packaged files, then creates or updates the GitHub Release for the tag so a browser can download the same bytes.
+[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) is a dispatch-only native pack matrix plus a credentialed publish job. Pack runs `pnpm run build:official` then `pnpm run desktop:pack` on `windows-2025` (NSIS `.exe`), `macos-15` (unsigned host-arch `.dmg`), and `ubuntu-24.04` (host-arch `.AppImage`) and uploads each artifact. Publish downloads those bytes and runs [`scripts/release/publish-desktop-github-packages.ts`](../../../../scripts/release/publish-desktop-github-packages.ts): it attaches every present installer to the GitHub Release first, then publishes each file to `https://npm.pkg.github.com` as `@<owner>/dsh-desktop-<os>-<arch>` (the owner scope is the GitHub Packages rule). One combined tarball exceeds the 256 MiB Packages limit; electron-builder names the CI AppImage `linux-x86_64`.
 
 Publication is accepted only from `dsh-v<version>` or `desktop-v<version>` matching the repository version. The job uses `GITHUB_TOKEN` (`packages: write`, `contents: write`). It does not publish to npmjs.com and does not rewrite the in-repo `@deepseek-ai/dsh-desktop` name.
 
@@ -28,4 +28,4 @@ Publication is accepted only from `dsh-v<version>` or `desktop-v<version>` match
 
 ## Consequences
 
-A matching tag plus `workflow_dispatch` with `publish=true` puts the Windows, macOS, and Linux installers on GitHub Packages as `@<owner>/dsh-desktop` and on the tag's GitHub Release. Local `desktop:pack` remains the assembler for the current OS. The macOS DMG is unsigned.
+A matching tag plus `workflow_dispatch` with `publish=true` puts the Windows, macOS, and Linux installers on the tag's GitHub Release and on GitHub Packages as `@<owner>/dsh-desktop-win-x64`, `@<owner>/dsh-desktop-mac-arm64`, and `@<owner>/dsh-desktop-linux-x86_64` when those files exist. Local `desktop:pack` remains the assembler for the current OS. The macOS DMG is unsigned.

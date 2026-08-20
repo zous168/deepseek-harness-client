@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) 是仅手动触发的原生打包矩阵，外加一个带凭证的发布作业。打包在 `windows-2025`（NSIS `.exe`）、`macos-15`（未签名的主机架构 `.dmg`）与 `ubuntu-24.04`（主机架构 `.AppImage`）上运行 `pnpm run build:official` 再运行 `pnpm run desktop:pack`，并分别上传产物。发布作业下载这些字节并运行 [`scripts/release/publish-desktop-github-packages.ts`](../../../../scripts/release/publish-desktop-github-packages.ts)：它把 `@<owner>/dsh-desktop` 发布到 `https://npm.pkg.github.com`（所有者 scope 是 GitHub Packages 的规则），已存在的安装程序作为包内文件，然后创建或更新该 tag 的 GitHub Release，让浏览器能下载同一份字节。
+[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) 是仅手动触发的原生打包矩阵，外加一个带凭证的发布作业。打包在 `windows-2025`（NSIS `.exe`）、`macos-15`（未签名的主机架构 `.dmg`）与 `ubuntu-24.04`（主机架构 `.AppImage`）上运行 `pnpm run build:official` 再运行 `pnpm run desktop:pack`，并分别上传产物。发布作业下载这些字节并运行 [`scripts/release/publish-desktop-github-packages.ts`](../../../../scripts/release/publish-desktop-github-packages.ts)：它先把已存在的安装程序挂到 GitHub Release，再把每个文件作为 `@<owner>/dsh-desktop-<os>-<arch>` 发布到 `https://npm.pkg.github.com`（所有者 scope 是 GitHub Packages 的规则）。合并成一个 tarball 会超过 Packages 的 256 MiB 上限；electron-builder 把 CI 上的 AppImage 命名为 `linux-x86_64`。
 
 仅当 tag 为与仓库版本匹配的 `dsh-v<version>` 或 `desktop-v<version>` 时才接受发布。作业使用 `GITHUB_TOKEN`（`packages: write`、`contents: write`）。它不发布到 npmjs.com，也不改写仓库内的 `@deepseek-ai/dsh-desktop` 名称。
 
@@ -28,4 +28,4 @@ Status: implemented
 
 ## 后果
 
-匹配的 tag 加上 `workflow_dispatch` 且 `publish=true`，会把 Windows、macOS 与 Linux 安装程序作为 `@<owner>/dsh-desktop` 放到 GitHub Packages，并放到该 tag 的 GitHub Release。本地 `desktop:pack` 仍是当前操作系统的组装器。macOS DMG 未签名。
+匹配的 tag 加上 `workflow_dispatch` 且 `publish=true`，会把 Windows、macOS 与 Linux 安装程序放到该 tag 的 GitHub Release，并在对应文件存在时作为 `@<owner>/dsh-desktop-win-x64`、`@<owner>/dsh-desktop-mac-arm64`、`@<owner>/dsh-desktop-linux-x86_64` 放到 GitHub Packages。本地 `desktop:pack` 仍是当前操作系统的组装器。macOS DMG 未签名。

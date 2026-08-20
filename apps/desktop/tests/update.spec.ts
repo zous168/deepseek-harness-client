@@ -227,7 +227,7 @@ describe('desktop installer download', () => {
     }
     const linuxAsset = {
       name: desktopLinuxInstallerFileName('0.1.0-rc.9', 'x64'),
-      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x64.AppImage',
+      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x86_64.AppImage',
     }
     expect(desktopWindowsInstallerFileName('0.1.0-rc.9')).toBe(WIN_ASSET.name)
     expect(selectDesktopInstallerAsset([WIN_ASSET], '0.1.0-rc.9', 'win32', 'x64')).toEqual(WIN_ASSET)
@@ -268,7 +268,7 @@ describe('desktop installer download', () => {
     const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-desktop-appimage-'))
     const destination = join(cacheDir, desktopLinuxInstallerFileName('0.1.0-rc.9', 'x64'))
     await expect(downloadDesktopInstaller({
-      url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x64.AppImage',
+      url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x86_64.AppImage',
       destination,
       fetchBody: async () => new Uint8Array([1, 2, 3, 4]),
     })).resolves.toBe(destination)

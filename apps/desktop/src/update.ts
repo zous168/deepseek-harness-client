@@ -272,11 +272,11 @@ export function desktopMacInstallerFileName(version: string, arch: 'arm64' | 'x6
 /**
  * Linux AppImage file name published by `desktop:pack` on that architecture.
  * @param version - semver from the release tag.
- * @param arch - `arm64` or `x64`.
+ * @param arch - `arm64` or `x64`. electron-builder writes `x86_64` for `x64`.
  * @returns the artifact name under the GitHub Release.
  */
 export function desktopLinuxInstallerFileName(version: string, arch: 'arm64' | 'x64'): string {
-  return `DeepSeek Harness-${version}-linux-${arch}.AppImage`
+  return `DeepSeek Harness-${version}-linux-${arch === 'x64' ? 'x86_64' : arch}.AppImage`
 }
 
 /**

@@ -32,7 +32,7 @@ dsh desktop --no-update-check
 pnpm run desktop:pack
 ```
 
-打包脚本把鲸鱼标栅格化为 `icons/icon.png`，将 `@deepseek-ai/dsh` 部署到 `runtime/`，然后为当前操作系统运行 electron-builder。Windows NSIS 安装程序默认进行全局（所有用户）安装，写入 Program Files，并请求提升权限。macOS 检出目录写出未签名的主机架构 DMG（Apple Silicon 为 `mac-arm64`，Intel 为 `mac-x64`）。Linux 检出目录写出主机架构 AppImage（CI 运行器为 `linux-x64`）。安装程序输出到 `release/`。[`Release (desktop)`](../../.github/workflows/desktop-release.yml) 在 `windows-2025` 上打包 Windows、在 `macos-15` 上打包 macOS、在 `ubuntu-24.04` 上打包 Linux，再把这些产物作为 `@<owner>/dsh-desktop` 发布到 GitHub Packages，同时挂到该 tag 的 GitHub Release（[发布](../../.agents/notes/implemented/process/2026-08-20-desktop-github-packages-release.md)）。从 `dsh-v<version>` 或 `desktop-v<version>` 触发工作流并将 `publish` 设为 `true`。
+打包脚本把鲸鱼标栅格化为 `icons/icon.png`，将 `@deepseek-ai/dsh` 部署到 `runtime/`，然后为当前操作系统运行 electron-builder。Windows NSIS 安装程序默认进行全局（所有用户）安装，写入 Program Files，并请求提升权限。macOS 检出目录写出未签名的主机架构 DMG（Apple Silicon 为 `mac-arm64`，Intel 为 `mac-x64`）。Linux 检出目录写出主机架构 AppImage（CI 运行器为 `linux-x86_64`）。安装程序输出到 `release/`。[`Release (desktop)`](../../.github/workflows/desktop-release.yml) 在 `windows-2025` 上打包 Windows、在 `macos-15` 上打包 macOS、在 `ubuntu-24.04` 上打包 Linux，再把每个安装程序作为 `@<owner>/dsh-desktop-<os>-<arch>` 发布到 GitHub Packages（GitHub Packages 拒绝超过 256 MiB 的单个 tarball），同时挂到该 tag 的 GitHub Release（[发布](../../.agents/notes/implemented/process/2026-08-20-desktop-github-packages-release.md)）。从 `dsh-v<version>` 或 `desktop-v<version>` 触发工作流并将 `publish` 设为 `true`。
 
 ## 模型体验
 
