@@ -81,6 +81,15 @@ export function authorizeDesktopGithubPublish(request: DesktopGithubPublishReque
 }
 
 /**
+ * `npm publish` argv. A prerelease must not take the `latest` dist-tag.
+ * @param version - repository version.
+ * @returns argv after `npm`.
+ */
+export function desktopNpmPublishArgs(version: string): string[] {
+  return version.includes('-') ? ['publish', '--tag', 'next'] : ['publish']
+}
+
+/**
  * Manifest written into the GitHub Packages tarball.
  * @param options - owner, version, and installer file name.
  * @returns package.json fields for `npm publish`.
@@ -140,7 +149,7 @@ export function publishDesktopGithubPackages(request: DesktopGithubPublishReques
       if (name === undefined) continue
       cpSync(installerPath, join(staging, name))
     }
-    const published = attemptEchoed('npm', ['publish'], {
+    const published = attemptEchoed('npm', desktopNpmPublishArgs(version), {
       cwd: staging,
       env: process.env,
     })

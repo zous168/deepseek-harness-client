@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   authorizeDesktopGithubPublish,
   desktopPublishTags,
+  desktopNpmPublishArgs,
   desktopWindowsInstallerName,
   githubPackagesDesktopManifest,
   githubPackagesDesktopName,
@@ -40,6 +41,11 @@ describe('desktop GitHub Packages publish', () => {
       .toThrow('must run from tag')
     expect(() => authorizeDesktopGithubPublish({ ...base, publish: true, refType: 'tag', refName: 'dsh-v0.0.1' }, '0.1.0-rc.8'))
       .toThrow('must run from tag')
+  })
+
+  it('publishes prereleases under the next dist-tag', () => {
+    expect(desktopNpmPublishArgs('0.1.0-rc.8')).toEqual(['publish', '--tag', 'next'])
+    expect(desktopNpmPublishArgs('0.1.0')).toEqual(['publish'])
   })
 
   it('writes a GitHub Packages manifest that ships only the installer', () => {
