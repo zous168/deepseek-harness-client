@@ -98,6 +98,13 @@ describe('SettingsRoot trigger', () => {
 })
 
 describe('SettingsPanel chrome seats', () => {
+  it('portals the panel to document.body so sidebar overflow cannot trap it', () => {
+    mount()
+    openPanel()
+    const overlay = screen.getByRole('dialog').closest('[role="presentation"]')
+    expect(overlay?.parentElement).toBe(document.body)
+  })
+
   it('names the dialog via aria-labelledby pointing at the header seat node', () => {
     mount()
     openPanel()

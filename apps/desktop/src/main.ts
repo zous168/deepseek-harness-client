@@ -105,6 +105,10 @@ function stopHost(): void {
   }
 }
 
+function desktopBootFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function boot(): Promise<void> {
   const input = desktopInputFromArgv(argvAfterMain(process.argv, app.isPackaged))
   host = await startHost(resolveHostPlan({
@@ -135,13 +139,14 @@ async function boot(): Promise<void> {
 
 app.whenReady().then(() => {
   void boot().catch((error: unknown) => {
-    const reason = error instanceof Error ? error.message : String(error)
+    const reason = desktopBootFailureMessage(error)
     console.error(reason)
+    dialog.showErrorBox(WINDOW_TITLE, reason)
     stopHost()
     app.exit(1)
   })
 }).catch((error: unknown) => {
-  const reason = error instanceof Error ? error.message : String(error)
+  const reason = desktopBootFailureMessage(error)
   console.error(reason)
   app.exit(1)
 })

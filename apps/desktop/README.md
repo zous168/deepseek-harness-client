@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Packaged Electron window for the DeepSeek Harness Web UI. The shell boots the existing `web` profile as a child, waits for the `dsh web:` ready line, and loads that loopback URL. The window is frameless (`frame: false`): a 36px top strip plus the sidebar logo row and session header drag the window, and the shell injects minimize / maximize / close. The window and installer use the DeepSeek whale mark on the brand-blue plate from [`icons/icon.svg`](icons/icon.svg).
+Packaged Electron window for the DeepSeek Harness Web UI. The shell boots the existing `web` profile as a child, waits for the `dsh web:` ready line, and loads that loopback URL. The window is frameless (`frame: false`): the session header, sidebar logo row, blank-hero column, and product title drag the window; header action clusters, other interactive controls, and any open modal stay clickable. The shell injects minimize / maximize / close. The window and installer use the DeepSeek whale mark on the brand-blue plate from [`icons/icon.svg`](icons/icon.svg).
 
 This is an application, not a new capability family. Host, Client, and web-app plugins stay where they are; the desktop package only owns the native window and the installer layout. The `file://` plus IPC carrier documented on [`dsh-host-webserver`](../../packages/host/webserver/README.md) is not this shell.
 

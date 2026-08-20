@@ -106,16 +106,24 @@ describe('frameless window chrome', () => {
       .toBe(TITLE_BAR_LIGHT)
   })
 
-  it('injects a top drag strip plus descendant drag on existing header chrome', () => {
+  it('makes chrome surfaces drag and every interactive control no-drag', () => {
     const css = desktopWindowChromeCss()
-    expect(css).toContain('#dsh-desktop-drag-region')
-    expect(css).toContain('header *')
+    expect(css).not.toContain('#root { -webkit-app-region: no-drag; }')
+    expect(css).toContain('[data-phase="hero"]')
     expect(css).toContain('-webkit-app-region: drag')
     expect(css).toContain('-webkit-app-region: no-drag')
+    expect(css).toContain(':is(button, a, input, textarea, select')
+    expect(css).toContain('header [class*="headerUtilities"]')
+    expect(css).toContain('[class*="logoRow"] [class*="brand"]')
+    expect(css).toContain('[role="dialog"]')
+    expect(css).toContain('html:has([aria-modal="true"])')
+    expect(css).not.toContain('html:has([role="dialog"])')
+    expect(css).not.toContain('header * {')
+    expect(css).not.toContain('#dsh-desktop-drag-region')
     expect(css).toContain('header[class*="header"]')
     expect(css).toContain('padding-inline-end: 150px')
     expect(css).toContain('#dsh-desktop-window-controls')
-    expect(desktopWindowControlsScript()).toContain('dsh-desktop-drag-region')
+    expect(desktopWindowControlsScript()).toContain("getElementById('dsh-desktop-drag-region')?.remove()")
     expect(desktopWindowControlsScript()).toContain('dshDesktopWindow')
   })
 

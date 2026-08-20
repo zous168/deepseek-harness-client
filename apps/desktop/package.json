@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
-  "description": "Packaged Electron window that boots the web profile and loads its loopback URL",
+  "description": "DeepSeek Harness desktop application",
   "version": "0.1.0-rc.8",
   "publishConfig": {
     "access": "public"

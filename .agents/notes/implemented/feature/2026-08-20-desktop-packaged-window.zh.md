@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`dsh desktop` 启动 `@deepseek-ai/dsh-desktop`：这是一个 Electron 应用，将现有 `web` profile 作为子进程启动，并加载打印出的回环 URL。窗口标题为 `DeepSeek Harness`。窗口为 `frame: false`：没有操作系统标题栏。桌面壳注入一条 36px 顶栏拖拽带，让空白欢迎列也能拖动窗口（此时会话 `header` 为 `display: none`）。可见的侧栏 logo 行与会话 header 的子孙节点也可拖；`-webkit-app-region` 不会继承，且 Windows 会忽略全透明命中目标。交互控件保持 `no-drag`。桌面壳通过沙箱 preload 注入最小化／最大化／关闭。会话 header 右侧控件（含 Session log）用 `header[class*="header"]` 的 padding 避开该按钮簇，以压过会话 header 的 class padding。边缘缩放仍由 `thickFrame` 处理。窗口与 electron-builder 图标使用 Web favicon 已经使用的 DeepSeek 鲸鱼标，以白色画在品牌蓝底 `#4D6BFE` 上，源文件位于 `apps/desktop/icons/icon.svg`，并栅格化为安装程序使用的 `icons/icon.png`。
+`dsh desktop` 启动 `@deepseek-ai/dsh-desktop`：这是一个 Electron 应用，将现有 `web` profile 作为子进程启动，并加载打印出的回环 URL。窗口标题为 `DeepSeek Harness`。窗口为 `frame: false`：没有操作系统标题栏。可拖的是会话 header、侧栏 logo 行、空白欢迎列与标题行，而不是它们的每个子孙，也不是 `#root`（Windows 上祖先 `no-drag` 会吞掉子孙 `drag`）。侧栏品牌会重新标成 `drag`，因此产品标题可以移动窗口；header 操作簇、其余交互控件，以及任何 `[role="dialog"]` / `[aria-modal="true"]` 树仍是 `no-drag`。Electron 命中 `-webkit-app-region` 时不看叠层绘制，因此打开 `[aria-modal="true"]` 还会关掉 chrome 拖拽并隐藏注入的窗口按钮簇。设置面板与 `Modal` 一样挂到 `document.body`，侧栏 `overflow` 层叠就不会把对话框压在该按钮簇下面。注入时会去掉残留的并列拖拽带。桌面壳通过沙箱 preload 注入最小化／最大化／关闭。会话 header 右侧控件（含 Session log）用 `header[class*="header"]` 的 padding 避开该按钮簇，以压过会话 header 的 class padding。边缘缩放仍由 `thickFrame` 处理。窗口与 electron-builder 图标使用 Web favicon 已经使用的 DeepSeek 鲸鱼标，以白色画在品牌蓝底 `#4D6BFE` 上，源文件位于 `apps/desktop/icons/icon.svg`，并栅格化为安装程序使用的 `icons/icon.png`。
 
 桌面包是 `apps/` 中的应用，不是能力族。它不新增 Host 或 Client 插件。启动器别名接受与 `dsh web` 相同的 `--patch` 和 dump flag；剩余 token 交给 web 应用命令行。宿主始终收到 `--no-open`。调用方省略 `--port` 时，宿主收到 `--port 0`，避免两个窗口抢占 3080。
 
@@ -32,4 +32,4 @@ Status: implemented
 
 ## 后果
 
-贡献者与用户可以在以 DeepSeek 鲸鱼标为图标的原生窗口中运行同一套 Web UI。宿主仍会绑定回环端口，因此桌面与 `dsh web` 共享信任、就绪信号，以及 GUI 的快照覆盖。窗口外壳由包测试钉住图标路径、就绪 URL 解析、宿主 argv，以及无边框 `BrowserWindow` 选项与注入的拖拽带及子孙拖拽 CSS；CI 中没有 Electron 窗口快照。Windows 安装程序是 `desktop:pack` 的输出；[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) 负责发布。
+贡献者与用户可以在以 DeepSeek 鲸鱼标为图标的原生窗口中运行同一套 Web UI。宿主仍会绑定回环端口，因此桌面与 `dsh web` 共享信任、就绪信号，以及 GUI 的快照覆盖。窗口外壳由包测试钉住图标路径、就绪 URL 解析、宿主 argv，以及无边框 `BrowserWindow` 选项与注入的 chrome 拖拽和对话框 `no-drag` CSS；CI 中没有 Electron 窗口快照。Windows 安装程序是 `desktop:pack` 的输出；[`Release (desktop)`](../../../../.github/workflows/desktop-release.yml) 负责发布。

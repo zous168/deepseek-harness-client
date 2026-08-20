@@ -14,7 +14,7 @@ Status: implemented
 
 仅当 tag 为与仓库版本匹配的 `dsh-v<version>` 或 `desktop-v<version>` 时才接受发布。作业使用 `GITHUB_TOKEN`（`packages: write`、`contents: write`）。它不发布到 npmjs.com，也不改写仓库内的 `@deepseek-ai/dsh-desktop` 名称。
 
-`desktop:pack` 用 `--legacy` 与 hoisted linker 部署 `@deepseek-ai/dsh`，省略 `--prod`，以免 CLI 同时列为 devDependencies 的 web 宿主包从运行时中被裁掉；electron-builder 指向已经解包的 Electron dist，并在把 `electron` 移入 `devDependencies` 供构建器使用后恢复 `package.json`。打包后的宿主启动 `extraResources/runtime/lib/bin.js`，这是 `pnpm deploy` 放置 CLI 入口的位置。打包还会根据 `DSH_DESKTOP_UPDATE_REPO`、`GITHUB_REPOSITORY` 或 `origin` 写入 `update-feed.json`，让正在运行的窗口能查询该仓库的 Releases（[更新检查](../feature/2026-08-20-desktop-update-check.md)）。
+`desktop:pack` 用 `--legacy` 与 hoisted linker 部署 `@deepseek-ai/dsh`，省略 `--prod`，以免 CLI 同时列为 devDependencies 的 web 宿主包从运行时中被裁掉，并且不设置 `link-workspace-packages`，以便复制而不是链接 workspace 包。部署后断言存在 `runtime/lib/bin.js` 与 `runtime/node_modules/@deepseek-ai/dsh-app-boot`；electron-builder 指向已经解包的 Electron dist，并在把 `electron` 移入 `devDependencies` 供构建器使用后恢复 `package.json`。extraResources 的 FileMatcher 会丢掉 `node_modules`，因此 `afterPack` 把已部署的树（解引用链接）拷进解包后的 `resources/runtime` 并再次断言这些启动路径。部署之后还会补拷被 legacy hoisting 或 `link:` override 漏掉的 workspace 包（首先是 `@deepseek-ai/cosmokit`）。打包后的宿主启动该 `runtime/lib/bin.js`。打包还会根据 `DSH_DESKTOP_UPDATE_REPO`、`GITHUB_REPOSITORY` 或 `origin` 写入 `update-feed.json`，让正在运行的窗口能查询该仓库的 Releases（[更新检查](../feature/2026-08-20-desktop-update-check.md)）。
 
 ## 曾考虑的替代方案
 

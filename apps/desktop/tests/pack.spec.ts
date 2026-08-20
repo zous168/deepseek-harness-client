@@ -1,13 +1,19 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  assertDesktopRuntime,
+  assertElectronDist,
+  copyDesktopRuntime,
   desktopBuilderManifest,
   desktopBuilderOptions,
   desktopDeployArgs,
+  desktopElectronDistEntry,
+  desktopPackagedRuntimeRoot,
   desktopRepoRoot,
+  restoreDesktopWorkspaceClosure,
   writeDesktopUpdateFeedFile,
 } from '../scripts/pack.ts'
 
@@ -24,7 +30,6 @@ describe('desktop pack', () => {
       '--legacy',
       '--config.auto-install-peers=false',
       '--config.node-linker=hoisted',
-      '--config.link-workspace-packages=true',
       '/repo/apps/desktop/runtime',
     ])
   })
@@ -43,20 +48,20 @@ describe('desktop pack', () => {
   })
 
   it('points electron-builder at extraResources and forbids implicit publish', () => {
-    expect(desktopBuilderOptions({
+    const withoutFeed = desktopBuilderOptions({
       desktopRoot: '/repo/apps/desktop',
       runtimeRoot: '/repo/apps/desktop/runtime',
       electronDist: '/repo/node_modules/electron/dist',
-    })).toEqual({
+    })
+    expect(withoutFeed).toMatchObject({
       projectDir: '/repo/apps/desktop',
       publish: 'never',
       config: {
         electronDist: '/repo/node_modules/electron/dist',
-        extraResources: [
-          { from: '/repo/apps/desktop/runtime', to: 'runtime' },
-        ],
+        extraResources: [],
       },
     })
+    expect(typeof withoutFeed.config?.afterPack).toBe('function')
     expect(desktopBuilderOptions({
       desktopRoot: '/repo/apps/desktop',
       runtimeRoot: '/repo/apps/desktop/runtime',
@@ -64,10 +69,29 @@ describe('desktop pack', () => {
       updateFeedPath: '/repo/apps/desktop/update-feed.json',
     }).config).toMatchObject({
       extraResources: [
-        { from: '/repo/apps/desktop/runtime', to: 'runtime' },
         { from: '/repo/apps/desktop/update-feed.json', to: 'update-feed.json' },
       ],
     })
+  })
+
+  it('places the packaged runtime under Resources on macOS and resources elsewhere', () => {
+    expect(desktopPackagedRuntimeRoot('/out/DeepSeek Harness.app', 'darwin').replaceAll('\\', '/'))
+      .toBe('/out/DeepSeek Harness.app/Contents/Resources/runtime')
+    expect(desktopPackagedRuntimeRoot('/out/win-unpacked', 'win32').replaceAll('\\', '/'))
+      .toBe('/out/win-unpacked/resources/runtime')
+  })
+
+  it('copies the deployed runtime into the unpacked app and re-asserts boot files', () => {
+    const runtimeRoot = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-src-'))
+    const packagedRoot = join(mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-dst-')), 'runtime')
+    mkdirSync(join(runtimeRoot, 'lib'), { recursive: true })
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'dsh-app-boot'), { recursive: true })
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cordis-plugin-group'), { recursive: true })
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit'), { recursive: true })
+    writeFileSync(join(runtimeRoot, 'lib', 'bin.js'), 'export {}\n')
+    copyDesktopRuntime(runtimeRoot, packagedRoot)
+    expect(readFileSync(join(packagedRoot, 'lib', 'bin.js'), 'utf8')).toBe('export {}\n')
+    expect(() => assertDesktopRuntime(packagedRoot)).not.toThrow()
   })
 
   it('pins the Windows per-machine NSIS options and the macOS and Linux targets', () => {
@@ -77,6 +101,63 @@ describe('desktop pack', () => {
     expect(yml).toMatch(/\nmac:\n(?:  .+\n)*    - dmg\n/)
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
     expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
+  })
+
+  it('names the Electron dist entry electron-builder renames', () => {
+    expect(desktopElectronDistEntry('win32')).toBe('electron.exe')
+    expect(desktopElectronDistEntry('darwin')).toBe('Electron.app')
+    expect(desktopElectronDistEntry('linux')).toBe('electron')
+  })
+
+  it('refuses an unpacked Electron dist that is missing the binary', () => {
+    const electronDist = mkdtempSync(join(tmpdir(), 'dsh-desktop-electron-dist-'))
+    expect(() => assertElectronDist(electronDist, 'win32')).toThrow('missing electron.exe')
+    writeFileSync(join(electronDist, 'electron.exe'), '')
+    expect(() => assertElectronDist(electronDist, 'win32')).not.toThrow()
+  })
+
+  it('refuses a deployed runtime that cannot resolve the CLI boot package', () => {
+    const runtimeRoot = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-assert-'))
+    expect(() => assertDesktopRuntime(runtimeRoot)).toThrow('missing lib/bin.js')
+    mkdirSync(join(runtimeRoot, 'lib'), { recursive: true })
+    writeFileSync(join(runtimeRoot, 'lib', 'bin.js'), 'export {}\n')
+    expect(() => assertDesktopRuntime(runtimeRoot)).toThrow('missing node_modules/@deepseek-ai/dsh-app-boot')
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'dsh-app-boot'), { recursive: true })
+    expect(() => assertDesktopRuntime(runtimeRoot)).toThrow('missing node_modules/@deepseek-ai/cordis-plugin-group')
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cordis-plugin-group'), { recursive: true })
+    expect(() => assertDesktopRuntime(runtimeRoot)).toThrow('missing node_modules/@deepseek-ai/cosmokit')
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit'), { recursive: true })
+    expect(() => assertDesktopRuntime(runtimeRoot)).not.toThrow()
+  })
+
+  it('uses a product description on the desktop package, not the implementation note', () => {
+    const manifest = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')) as {
+      description: string
+    }
+    expect(manifest.description).toBe('DeepSeek Harness desktop application')
+    expect(manifest.description).not.toMatch(/loopback|web profile/i)
+  })
+
+  it('copies workspace packages that the deployed tree imports but did not materialize', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'dsh-desktop-workspace-'))
+    const cosmokit = join(repoRoot, 'vendor', 'cosmokit')
+    mkdirSync(cosmokit, { recursive: true })
+    writeFileSync(join(cosmokit, 'package.json'), `${JSON.stringify({ name: '@deepseek-ai/cosmokit' })}\n`)
+    writeFileSync(join(cosmokit, 'index.js'), 'export {}\n')
+    const runtimeRoot = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-close-'))
+    const cordis = join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cordis')
+    mkdirSync(cordis, { recursive: true })
+    writeFileSync(join(cordis, 'package.json'), `${JSON.stringify({
+      name: '@deepseek-ai/cordis',
+      dependencies: { '@deepseek-ai/cosmokit': 'workspace:^' },
+    })}\n`)
+    expect(restoreDesktopWorkspaceClosure(runtimeRoot, repoRoot)).toEqual(['@deepseek-ai/cosmokit'])
+    expect(readFileSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit', 'index.js'), 'utf8'))
+      .toBe('export {}\n')
+    mkdirSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit', 'stale'), { recursive: true })
+    rmSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit', 'package.json'), { force: true })
+    expect(restoreDesktopWorkspaceClosure(runtimeRoot, repoRoot)).toEqual(['@deepseek-ai/cosmokit'])
+    expect(existsSync(join(runtimeRoot, 'node_modules', '@deepseek-ai', 'cosmokit', 'package.json'))).toBe(true)
   })
 
   it('writes the stamped update-feed.json the installer copies into extraResources', () => {

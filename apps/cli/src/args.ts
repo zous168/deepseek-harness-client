@@ -78,7 +78,7 @@ Examples:
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
   dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
   dsh --profile web --help                   the web app's own flags and help
-  dsh desktop                                boot the web profile in a packaged window
+  dsh desktop                                open the DeepSeek Harness desktop window
   dsh plugin --profile tui add <package>     install a plugin into the tui profile
 `
 
@@ -184,7 +184,7 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
       resolved = resolveBoot(web, 'web', options, args)
     })
 
-  const desktop = program.command('desktop').description('boot the web profile in a packaged Electron window that uses the DeepSeek icon; the web app\'s own flags follow')
+  const desktop = program.command('desktop').description('open the DeepSeek Harness desktop window; the web app\'s own flags follow')
   desktop
     .helpOption(false)
     .allowUnknownOption()

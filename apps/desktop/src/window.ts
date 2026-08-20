@@ -123,35 +123,63 @@ export function applyDesktopWindowAction(win: DesktopWindowCommands, action: unk
   }
 }
 
+/** Interactive widgets that must receive clicks inside a drag surface. */
+const DESKTOP_NO_DRAG_CONTROLS = [
+  'button', 'a', 'input', 'textarea', 'select',
+  '[role="button"]', '[role="tab"]', '[role="menuitem"]',
+  '[role="switch"]', '[role="checkbox"]', '[role="slider"]',
+  '[role="textbox"]', '[role="combobox"]', '[role="listbox"]',
+  '[contenteditable="true"]',
+].join(', ')
+
 /**
  * CSS injected into the loaded Web UI so the frameless window can be moved.
- * A dedicated top strip covers the blank-hero column (the session `header` is
- * `display: none` there). Visible header / logo-row descendants also drag:
- * `-webkit-app-region` is not inherited, and Windows ignores a fully
- * transparent hit target. Interactive controls stay `no-drag`.
+ * Drag is only on chrome boxes. `#root` is not `no-drag`: an ancestor
+ * `no-drag` on Windows swallows descendant `drag`. The sidebar brand is a
+ * New Session button, so it is re-marked `drag` after the control rule —
+ * the dedicated New Session control stays clickable. Electron hit-tests
+ * `-webkit-app-region` independently of overlay paint, so an open
+ * `[aria-modal="true"]` turns chrome drag off. Header action clusters,
+ * every other interactive control, and the dialog tree stay `no-drag`.
+ * A leftover sibling overlay strip is removed on inject.
  * @returns a stylesheet body.
  */
 export function desktopWindowChromeCss(): string {
+  const chrome = [
+    'header',
+    '[class*="logoRow"]',
+    '[data-phase="hero"]',
+    'header [class*="titleRow"]',
+    'header [class*="titleCluster"]',
+    'header [class*="tabs"]',
+  ].join(', ')
+  const brand = '[class*="logoRow"] [class*="brand"], [class*="logoRow"] [class*="brand"] *'
+  const whenModal = (suffix: string) => `html:has([aria-modal="true"]) ${suffix}`
   return [
-    '#dsh-desktop-drag-region {',
-    '  position: fixed; top: 0; right: 0; left: 0; z-index: 1; height: 36px;',
-    '  -webkit-app-region: drag; background-color: rgba(0, 0, 0, 0.01);',
+    `${chrome} {`,
+    '  -webkit-app-region: drag;',
+    '  background-color: inherit;',
     '}',
     'header, [class*="logoRow"] {',
-    '  position: relative; z-index: 2; -webkit-app-region: drag;',
-    '  background-color: inherit;',
+    '  position: relative; z-index: 1;',
     '}',
-    'header *, [class*="logoRow"] * { -webkit-app-region: drag; }',
-    'header [class*="titleRow"], header [class*="titleCluster"], header [class*="tabs"] {',
-    '  background-color: inherit;',
+    'header [class*="headerActions"], header [class*="headerUtilities"],',
+    'header [class*="headerActions"] *, header [class*="headerUtilities"] *,',
+    `:is(${DESKTOP_NO_DRAG_CONTROLS}),`,
+    `:is(${DESKTOP_NO_DRAG_CONTROLS}) *,`,
+    '[role="dialog"], [role="dialog"] *,',
+    '[aria-modal="true"], [aria-modal="true"] * {',
+    '  -webkit-app-region: no-drag;',
     '}',
-    'header :is(button, a, input, [role="button"], [role="tab"]),',
-    'header :is(button, a, input, [role="button"], [role="tab"]) *,',
-    '[class*="logoRow"] button, [class*="logoRow"] button * { -webkit-app-region: no-drag; }',
+    `${brand} { -webkit-app-region: drag; }`,
+    `${whenModal(`:is(${chrome})`)}, ${whenModal(brand)} {`,
+    '  -webkit-app-region: no-drag;',
+    '}',
+    `${whenModal('#dsh-desktop-window-controls')} { visibility: hidden; }`,
     /* Conversation `.header` sets `padding: 12px 28px 0 20px` (class beats `header`). */
     'header[class*="header"] { padding-inline-end: 150px; }',
     '#dsh-desktop-window-controls {',
-    '  position: fixed; top: 0; right: 0; z-index: 3;',
+    '  position: fixed; top: 0; right: 0; z-index: 2;',
     '  display: flex; height: 36px; -webkit-app-region: no-drag;',
     '}',
     '#dsh-desktop-window-controls button {',
@@ -165,18 +193,13 @@ export function desktopWindowChromeCss(): string {
 }
 
 /**
- * Page script that mounts the top drag strip and the minimize / maximize /
- * close cluster. Idempotent so Client navigations can run it again.
+ * Page script that mounts the minimize / maximize / close cluster.
+ * Idempotent so Client navigations can run it again.
  * @returns a script body for `executeJavaScript`.
  */
 export function desktopWindowControlsScript(): string {
   return `(() => {
-  if (document.getElementById('dsh-desktop-drag-region') === null) {
-    const drag = document.createElement('div')
-    drag.id = 'dsh-desktop-drag-region'
-    drag.setAttribute('aria-hidden', 'true')
-    document.documentElement.appendChild(drag)
-  }
+  document.getElementById('dsh-desktop-drag-region')?.remove()
   const api = globalThis.dshDesktopWindow
   if (api === undefined || document.getElementById('dsh-desktop-window-controls') !== null) return
   const root = document.createElement('div')
