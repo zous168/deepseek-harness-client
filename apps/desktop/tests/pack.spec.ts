@@ -76,6 +76,7 @@ describe('desktop pack', () => {
     expect(yml).toMatch(/\nnsis:\n(?:  .+\n)*  selectPerMachineByDefault: true\n/)
     expect(yml).toMatch(/\nmac:\n(?:  .+\n)*    - dmg\n/)
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
+    expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
   })
 
   it('writes the stamped update-feed.json the installer copies into extraResources', () => {

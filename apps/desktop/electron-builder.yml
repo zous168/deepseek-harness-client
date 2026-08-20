@@ -1,5 +1,6 @@
 appId: ai.deepseek.harness
 productName: DeepSeek Harness
+executableName: DeepSeekHarness
 copyright: Copyright © DeepSeek
 directories:
   output: release
