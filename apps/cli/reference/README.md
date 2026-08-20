@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This reference defines the profile, web-alias, plugin-management, and config-dump command modes. Argv is parsed once through [`src/args.ts`](../src/args.ts), and [`src/bin.ts`](../src/bin.ts) dynamically imports only the selected runner.
+This reference defines the profile, web-alias, desktop-alias, plugin-management, and config-dump command modes. Argv is parsed once through [`src/args.ts`](../src/args.ts), and [`src/bin.ts`](../src/bin.ts) dynamically imports only the selected runner.
 
 ## Profile boot
 
@@ -73,6 +73,8 @@ dsh web --patch ./extra.cordis.yml
 dsh web --dump-config
 dsh web --help
 ```
+
+`dsh desktop` starts the same web profile inside the packaged Electron window owned by [`@deepseek-ai/dsh-desktop`](../../desktop/README.md). Leftover flags after `desktop` are the web app's flags. The window always passes `--no-open` and, unless `--port` is named, `--port 0`. After the window loads, the shell silently downloads a newer installer for this platform when one exists and asks for install authorization; `--no-update-check` skips that query. `--dump-config` and `--dump-default-config` still print the web tree without starting Electron. The window and installer use the DeepSeek whale icon.
 
 The production Web runner needs built package and frontend artifacts (`pnpm run build`). It serves `http://127.0.0.1:3080` by default and, for a local launch, opens that canonical host URL only after the complete Loader tree settles. A non-empty inherited `SSH_CONNECTION` or `SSH_TTY` suppresses the browser handoff because the SSH client or editor owns the local forwarded address; the host URL is still printed. The CLI intentionally does not support `--host 0.0.0.0` yet and exits with a usage error. Immediately before a local handoff it prints `dsh web: opening the default browser; pass --no-open to disable`; if the operating-system handoff fails, a diagnostic on stderr states the reason, leaves the server running, and names the URL for manual use. `--trusted-host` adds named authorities accepted by the `/api` browser-trust fence.
 

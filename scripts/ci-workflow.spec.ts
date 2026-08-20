@@ -252,6 +252,60 @@ describe('DeepSeek e2e workflow', () => {
   })
 })
 
+describe('Desktop release workflow', () => {
+  it('packs Windows, macOS, and Linux installers on dispatch and publishes only to GitHub Packages', () => {
+    const workflow = loadWorkflow('.github/workflows/desktop-release.yml')
+    const dispatch = workflowEvent(workflow, 'workflow_dispatch')
+    const pack = workflowJob(workflow, 'pack')
+    const publish = workflowJob(workflow, 'publish')
+    if (!isRecord(dispatch.inputs) || !isRecord(dispatch.inputs.publish) || !Array.isArray(pack.steps) || !Array.isArray(publish.steps)) {
+      throw new TypeError('Desktop release workflow must define publish input and pack/publish steps')
+    }
+
+    expect(workflow.on).toEqual({
+      workflow_dispatch: {
+        inputs: {
+          publish: {
+            description: 'Publish the installer to GitHub Packages and a GitHub Release. Must run from a dsh-v* or desktop-v* tag.',
+            required: true,
+            type: 'boolean',
+            default: false,
+          },
+        },
+      },
+    })
+    expect(pack).toMatchObject({
+      'runs-on': '${{ matrix.os }}',
+    })
+    expect(pack.strategy).toMatchObject({
+      'fail-fast': false,
+      matrix: {
+        include: [
+          { os: 'windows-2025', artifact: 'apps/desktop/release/*.exe' },
+          { os: 'macos-15', artifact: 'apps/desktop/release/*.dmg' },
+          { os: 'ubuntu-24.04', artifact: 'apps/desktop/release/*.AppImage' },
+        ],
+      },
+    })
+    expect(JSON.stringify(pack.steps)).toContain('pnpm run desktop:pack')
+    expect(publish).toMatchObject({
+      if: 'inputs.publish',
+      needs: 'pack',
+      permissions: { contents: 'write', packages: 'write' },
+    })
+    expect(JSON.stringify(publish.steps)).toContain('npm.pkg.github.com')
+    expect(JSON.stringify(publish.steps)).toContain('publish-desktop-github-packages.ts')
+    expect(JSON.stringify(publish.steps)).toContain('desktop-installer-*')
+    const setups = [...pack.steps, ...publish.steps].filter(step => (
+      isRecord(step) && typeof step.uses === 'string' && step.uses.startsWith('pnpm/action-setup@')
+    ))
+    expect(setups.length).toBe(2)
+    for (const step of setups) {
+      expect(step).toMatchObject({ with: { dest: '${{ runner.temp }}/setup-pnpm' } })
+    }
+  })
+})
+
 describe('Python release workflows', () => {
   it('keeps complete wheel validation separate from protected public publication', () => {
     const workflow = loadWorkflow('.github/workflows/python-release.yml')

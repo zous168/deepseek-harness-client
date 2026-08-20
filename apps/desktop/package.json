@@ -1,0 +1,33 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "Packaged Electron window that boots the web profile and loads its loopback URL",
+  "version": "0.1.0-rc.8",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "apps/desktop"
+  },
+  "type": "module",
+  "main": "lib/main.js",
+  "files": [
+    "lib/*.js",
+    "preload.cjs",
+    "icons"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "pack": "node --import tsx/esm scripts/pack.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^37.3.1"
+  },
+  "devDependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
+    "@types/node": "^22.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}

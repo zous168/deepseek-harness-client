@@ -8,6 +8,7 @@
 
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import { dialogWorkerEnv, resolveDialogWorkerExecPath } from '../src/win32-dialog-host.ts'
 import { pickWin32Directory, type Win32DialogInternals, type Win32DialogWorkerLike } from '../src/win32-dialog.ts'
 import type { Win32DialogWorkerMessage } from '../src/win32-dialog-worker.ts'
 
@@ -40,6 +41,19 @@ function harness(overrides: Partial<Win32DialogInternals> = {}): Harness {
 }
 
 const live = (): AbortSignal => new AbortController().signal
+
+describe('dialogWorkerEnv', () => {
+  it('marks the dialog child as Electron-as-Node', () => {
+    const env = dialogWorkerEnv('Open folder')
+    expect(env.DSH_DIALOG_TITLE).toBe('Open folder')
+    expect(env.ELECTRON_RUN_AS_NODE).toBe('1')
+  })
+
+  it('prefers an existing DSH_NODE_EXECUTABLE over process.execPath', () => {
+    expect(resolveDialogWorkerExecPath({ DSH_NODE_EXECUTABLE: process.execPath })).toBe(process.execPath)
+    expect(resolveDialogWorkerExecPath({ DSH_NODE_EXECUTABLE: '/no/such/node' })).toBe(process.execPath)
+  })
+})
 
 describe('pickWin32Directory', () => {
   it('resolves the selected path and the cancellation null', async () => {

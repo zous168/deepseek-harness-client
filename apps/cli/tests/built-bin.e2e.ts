@@ -318,6 +318,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
     expect(help.stdout).toContain('dsh --profile web')
+    expect(help.stdout).toContain('dsh desktop')
     expect(help.stdout).toContain('dsh plugin --profile')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
     for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
@@ -329,6 +330,16 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
   it('routes help and usage errors without activating startup-dependent rows', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-app-help-'))
     try {
+      const desktopHelp = await runBuiltBin(['desktop', '--help'], {
+        DSH_HOME: home,
+        DSH_TELEMETRY_DISABLED: '1',
+      })
+      expect(desktopHelp.code).toBe(0)
+      expect(desktopHelp.stderr).toBe('')
+      expect(desktopHelp.stdout).toContain('Usage: dsh desktop')
+      expect(desktopHelp.stdout).toContain('packaged window')
+      expect(desktopHelp.stdout).not.toContain('dsh web: http://')
+
       const web = await runBuiltBin(['--profile', 'web', '--help'], {
         DSH_HOME: home,
         DSH_TELEMETRY_DISABLED: '1',

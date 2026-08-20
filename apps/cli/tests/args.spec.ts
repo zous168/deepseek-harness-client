@@ -28,6 +28,11 @@ describe('parseDshArgs', () => {
     expect(parse(['web'])).toEqual({ mode: 'profile', profile: 'web', patches: [], args: [] })
     expect(parse(['web', '--patch', 'web.yml']))
       .toEqual({ mode: 'profile', profile: 'web', patches: ['web.yml'], args: [] })
+    expect(parse(['desktop'])).toEqual({ mode: 'desktop', patches: [], args: [] })
+    expect(parse(['desktop', '--patch', 'web.yml', '--port', '8080']))
+      .toEqual({ mode: 'desktop', patches: ['web.yml'], args: ['--port', '8080'] })
+    expect(parse(['desktop', '--no-update-check']))
+      .toEqual({ mode: 'desktop', patches: [], args: ['--no-update-check'] })
   })
 
   it('ends the launcher flags at the first token it does not own', () => {
@@ -68,6 +73,10 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: false, patches: [] })
     expect(parse(['web', '--dump-default-config']))
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: true, patches: [] })
+    expect(parse(['desktop', '--dump-config']))
+      .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: false, patches: [] })
+    expect(parse(['desktop', '--dump-default-config']))
+      .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: true, patches: [] })
   })
 
   it('rejects missing profile, removed flags, and contradictory inputs', () => {
@@ -84,6 +93,7 @@ describe('parseDshArgs', () => {
     expect(exitCode(['--profile', 'x', '--dump-config', 'task'])).toBe(1)
     expect(exitCode(['--bogus'])).toBe(1)
     expect(exitCode(['--profile', 'x', 'web'])).toBe(1)
+    expect(exitCode(['--profile', 'x', 'desktop'])).toBe(1)
     expect(exitCode(['web', '--dump-config', '--dump-default-config'])).toBe(1)
     expect(exitCode(['web', '--dump-default-config', '--patch', 'w.yml'])).toBe(1)
     expect(exitCode(['web', '--patch='])).toBe(1)
@@ -99,6 +109,7 @@ describe('parseDshArgs', () => {
   })
 
   it('keeps its own help for an invocation with no app to hand it to', () => {
+    expect(exitCode(['desktop', '--help'])).toBe(0)
     expect(exitCode(['--help'])).toBe(0)
     expect(exitCode(['-h'])).toBe(0)
     expect(exitCode(['--version'])).toBe(0)

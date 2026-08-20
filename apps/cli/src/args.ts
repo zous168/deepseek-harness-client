@@ -10,8 +10,9 @@
  * `dsh --profile tui --resume abc` boots the tui profile with `--resume abc`,
  * and `dsh --profile web -h` prints the web app's help, not this one's.
  *
- * `web` is a hardcoded alias for `--profile web`; `plugin` manages a profile's
- * plugin dependencies by forwarding to pnpm.
+ * `web` is a hardcoded alias for `--profile web`; `desktop` launches the
+ * packaged Electron window over that same profile; `plugin` manages a
+ * profile's plugin dependencies by forwarding to pnpm.
  * @module @deepseek-ai/dsh/args
  */
 
@@ -44,8 +45,17 @@ interface PluginInvocation {
   args: string[]
 }
 
+/** Launch the packaged desktop window over the web profile. */
+interface DesktopInvocation {
+  mode: 'desktop'
+  /** Extra patch-list overlays applied after the profile's own layer, in argv order. */
+  patches: string[]
+  /** Web-app arguments forwarded into the Electron main process. */
+  args: string[]
+}
+
 /** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
-export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation
+export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation | DesktopInvocation
 
 /** Launcher flags shared by the default command and the `web` alias. */
 interface BootOptions {
@@ -68,6 +78,7 @@ Examples:
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
   dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
   dsh --profile web --help                   the web app's own flags and help
+  dsh desktop                                boot the web profile in a packaged window
   dsh plugin --profile tui add <package>     install a plugin into the tui profile
 `
 
@@ -80,7 +91,12 @@ Examples:
  * @param args - the leftover arguments, in argv order.
  * @returns the resolved invocation.
  */
-function resolveBoot(program: Command, profile: string, options: BootOptions, args: string[]): DshInvocation {
+function resolveBoot(
+  program: Command,
+  profile: string,
+  options: BootOptions,
+  args: string[],
+): ProfileInvocation | DumpConfigInvocation {
   const patches = options.patch ?? []
   if (patches.includes('')) program.error('error: --patch needs a path')
   if (options.dumpConfig !== true && options.dumpDefaultConfig !== true) {
@@ -166,6 +182,40 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .action((args: string[], options: BootOptions) => {
       rejectParentOptions('web')
       resolved = resolveBoot(web, 'web', options, args)
+    })
+
+  const desktop = program.command('desktop').description('boot the web profile in a packaged Electron window that uses the DeepSeek icon; the web app\'s own flags follow')
+  desktop
+    .helpOption(false)
+    .allowUnknownOption()
+    .passThroughOptions()
+    .enablePositionalOptions()
+    .argument('[args...]', 'arguments for the web app running inside the packaged window (see: dsh desktop --help)')
+    .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
+    .option('--dump-config', 'print the composed web-profile tree (with the user layer and any --patch) and exit')
+    .option('--dump-default-config', 'print the web profile\'s bundle layers (no user layer) and exit')
+    .addHelpText('after', `
+The packaged window loads the same loopback Web UI as dsh web. It always
+passes --no-open so the host does not also launch a browser, and it asks
+the OS for a free port unless you pass --port. After the window loads it
+silently downloads a newer installer for this platform when one exists,
+then asks for install authorization, unless you pass --no-update-check.
+
+Examples:
+  dsh desktop
+  dsh desktop --port 8080
+  dsh desktop --patch ./extra.yml
+  dsh desktop --no-update-check
+`)
+    .action((args: string[], options: BootOptions) => {
+      rejectParentOptions('desktop')
+      if (args.some(argument => argument === '-h' || argument === '--help')) desktop.help()
+      const invocation = resolveBoot(desktop, 'web', options, args)
+      if (invocation.mode === 'dump-config') {
+        resolved = invocation
+        return
+      }
+      resolved = { mode: 'desktop', patches: invocation.patches, args: invocation.args }
     })
 
   const plugin = program.command('plugin').description('manage a profile\'s plugins by forwarding the remaining arguments to pnpm in the profile directory')

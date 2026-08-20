@@ -25,6 +25,7 @@ const dshBuildWorkflows = [
   'ci.yml',
   'e2b-e2e.yml',
   'e2e.yml',
+  'desktop-release.yml',
   'release.yml',
   'sandbox.yml',
 ]

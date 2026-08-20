@@ -1,0 +1,33 @@
+appId: ai.deepseek.harness
+productName: DeepSeek Harness
+copyright: Copyright © DeepSeek
+directories:
+  output: release
+  buildResources: icons
+files:
+  - lib/*.js
+  - preload.cjs
+  - icons/**
+icon: icons/icon.png
+win:
+  target:
+    - nsis
+  icon: icons/icon.png
+mac:
+  target:
+    - dmg
+  icon: icons/icon.png
+  category: public.app-category.developer-tools
+  hardenedRuntime: false
+  gatekeeperAssess: false
+linux:
+  target:
+    - AppImage
+  icon: icons/icon.png
+  category: Development
+nsis:
+  oneClick: false
+  perMachine: true
+  selectPerMachineByDefault: true
+  allowToChangeInstallationDirectory: true
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}

@@ -1,0 +1,127 @@
+# Pack Windows, macOS, and Linux desktop installers and, on a manual publish
+# dispatch from a matching version tag, upload them to GitHub Packages
+# and a GitHub Release.
+#
+# Pack is dispatch-only: electron-builder is a long native job and is
+# not part of pull-request CI. Publication consumes the packed installer bytes.
+name: Release (desktop)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the installer to GitHub Packages and a GitHub Release. Must run from a dsh-v* or desktop-v* tag.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  pack:
+    name: Pack ${{ matrix.os }} installer
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            artifact: apps/desktop/release/*.exe
+          - os: macos-15
+            artifact: apps/desktop/release/*.dmg
+          - os: ubuntu-24.04
+            artifact: apps/desktop/release/*.AppImage
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Configure pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: |
+          store_root="${HOME}/.local/share/pnpm/store"
+          echo "PNPM_CONFIG_STORE_DIR=${store_root}" >> "${GITHUB_ENV}"
+          echo "path=$(PNPM_CONFIG_STORE_DIR=${store_root} pnpm store path --silent)" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build:official
+
+      - name: Pack desktop installer
+        run: pnpm run desktop:pack
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installer-${{ matrix.os }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to GitHub Packages
+    if: inputs.publish
+    needs: pack
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          registry-url: https://npm.pkg.github.com
+          scope: '@${{ github.repository_owner }}'
+
+      - name: Install (immutable, no package scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-installer-*
+          path: dist/desktop
+          merge-multiple: true
+
+      - name: Publish installer
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: pnpm exec tsx scripts/release/publish-desktop-github-packages.ts --publish --from dist/desktop

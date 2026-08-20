@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本参考定义 profile 启动、web 别名、插件管理和配置 dump 等命令模式。argv 由 [`src/args.ts`](../src/args.ts) 统一解析一次，[`src/bin.ts`](../src/bin.ts) 只会动态导入选中的运行器。
+本参考定义 profile 启动、web 别名、desktop 别名、插件管理和配置 dump 等命令模式。argv 由 [`src/args.ts`](../src/args.ts) 统一解析一次，[`src/bin.ts`](../src/bin.ts) 只会动态导入选中的运行器。
 
 ## Profile 启动
 
@@ -73,6 +73,8 @@ dsh web --patch ./extra.cordis.yml
 dsh web --dump-config
 dsh web --help
 ```
+
+`dsh desktop` 会在 [`@deepseek-ai/dsh-desktop`](../../desktop/README.md) 拥有的打包 Electron 窗口中启动同一个 web profile。写在 `desktop` 之后的剩余 flag 属于 web 应用。窗口始终传入 `--no-open`，并且在未指定 `--port` 时传入 `--port 0`。窗口加载后，若 GitHub Release 上有当前平台的更新安装程序，shell 会静默下载，并在安装前请求授权；`--no-update-check` 跳过该查询。`--dump-config` 与 `--dump-default-config` 仍只打印 web 配置树，不会启动 Electron。窗口与安装程序使用 DeepSeek 鲸鱼图标。
 
 生产 Web 运行器需要已构建的包和前端产物（`pnpm run build`）。默认服务地址是 `http://127.0.0.1:3080`；本机启动时，只在完整 Loader 配置树结算后才用默认浏览器打开该规范宿主机 URL。继承的 `SSH_CONNECTION` 或 `SSH_TTY` 非空时会跳过浏览器交接，因为本地转发地址由 SSH 客户端或编辑器持有；宿主机 URL 仍会打印。CLI 目前有意不支持 `--host 0.0.0.0`，并会以用法错误退出。本机交接前会打印英文提示 `dsh web: opening the default browser; pass --no-open to disable`；若操作系统交接失败，stderr 诊断会说明原因、给出 URL 供手动访问，服务器仍继续运行。`--trusted-host` 可添加 `/api` 浏览器信任围栏接受的具名 authority。
 
