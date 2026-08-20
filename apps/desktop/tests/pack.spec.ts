@@ -61,7 +61,11 @@ describe('desktop pack', () => {
         extraResources: [],
       },
     })
-    expect(typeof withoutFeed.config?.afterPack).toBe('function')
+    const config = withoutFeed.config
+    if (typeof config !== 'object' || config === null) {
+      throw new Error('builder config must be an object')
+    }
+    expect(typeof config.afterPack).toBe('function')
     expect(desktopBuilderOptions({
       desktopRoot: '/repo/apps/desktop',
       runtimeRoot: '/repo/apps/desktop/runtime',
