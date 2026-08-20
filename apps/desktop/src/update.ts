@@ -83,9 +83,9 @@ export function parseDesktopUpdateRepo(value: string | undefined): DesktopUpdate
  * @returns the first parseable repository.
  */
 export function desktopUpdateFeedFromIdentity(identity: {
-  updateRepo?: string
-  githubRepository?: string
-  originUrl?: string
+  updateRepo?: string | undefined
+  githubRepository?: string | undefined
+  originUrl?: string | undefined
 }): DesktopUpdateFeed | undefined {
   return parseDesktopUpdateRepo(identity.updateRepo)
     ?? parseDesktopUpdateRepo(identity.githubRepository)
