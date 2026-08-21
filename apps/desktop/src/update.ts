@@ -1,7 +1,8 @@
 /**
  * Detect a newer packaged desktop release from GitHub Releases.
  * The check never throws to the boot path: a missing feed, a failed fetch, or
- * an equal version leaves the running window unchanged.
+ * an equal version leaves the running window unchanged. Download progress is
+ * reported to the window; install still waits for authorization.
  * @module @deepseek-ai/dsh-desktop/update
  */
 
@@ -9,7 +10,7 @@ import { spawnSync } from 'node:child_process'
 import { createWriteStream, existsSync, readFileSync } from 'node:fs'
 import { chmod, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
@@ -21,7 +22,15 @@ export interface DesktopUpdateFeed {
   readonly repo: string
 }
 
-/** One newer installer the user can authorize after a silent download. */
+/** Bytes copied while caching one installer. */
+export interface DesktopDownloadProgress {
+  /** Bytes written so far. */
+  readonly received: number
+  /** Declared length, when GitHub or the caller provided it. */
+  readonly total?: number
+}
+
+/** One newer installer the user can authorize after the download finishes. */
 export interface DesktopUpdate {
   /** Semver from the release tag, without a `v` / `dsh-v` / `desktop-v` prefix. */
   readonly version: string
@@ -363,15 +372,36 @@ export function desktopInstallerCachePath(cacheDir: string, fileName: string): s
 }
 
 /**
+ * Fraction of a download that has a known total, otherwise `undefined`.
+ * @param progress - bytes received and optional total.
+ * @returns `0`–`1`, or `undefined` when the total is missing.
+ */
+export function desktopDownloadProgressRatio(progress: DesktopDownloadProgress): number | undefined {
+  if (progress.total === undefined || progress.total <= 0) return undefined
+  return Math.min(1, progress.received / progress.total)
+}
+
+/**
+ * Whole-percent copy of {@link desktopDownloadProgressRatio}.
+ * @param progress - bytes received and optional total.
+ * @returns `0`–`100`, or `undefined` when the total is missing.
+ */
+export function desktopDownloadProgressPercent(progress: DesktopDownloadProgress): number | undefined {
+  const ratio = desktopDownloadProgressRatio(progress)
+  return ratio === undefined ? undefined : Math.floor(ratio * 100)
+}
+
+/**
  * Download the installer, or reuse a complete cached file.
- * The download never prompts; callers ask for install authorization afterward.
- * @param options - URL, destination, and replaceable I/O.
+ * Progress events do not prompt; callers ask for install authorization afterward.
+ * @param options - URL, destination, progress sink, and replaceable I/O.
  * @returns the cached path, or `undefined` when the download cannot be trusted.
  */
 export async function downloadDesktopInstaller(options: {
   url: string
   destination: string
   expectedSize?: number
+  onProgress?: (progress: DesktopDownloadProgress) => void
   fetchBody?: (url: string) => Promise<Uint8Array | NodeWebReadableStream<Uint8Array> | undefined>
 }): Promise<string | undefined> {
   if (!isTrustedDesktopDownloadUrl(options.url)) return undefined
@@ -385,16 +415,32 @@ export async function downloadDesktopInstaller(options: {
   if (body === undefined) return undefined
   const part = `${options.destination}.part`
   await rm(part, { force: true })
+  const total = options.expectedSize ?? (body instanceof Uint8Array ? body.byteLength : undefined)
+  const report = createDownloadProgressReporter(options.onProgress, total)
   try {
+    report(0, true)
     if (body instanceof Uint8Array) {
       if (options.expectedSize !== undefined && body.byteLength !== options.expectedSize) return undefined
       await writeCachedInstaller(part, body)
+      report(body.byteLength, true)
     } else {
-      await pipeline(Readable.fromWeb(body), createWriteStream(part))
+      let received = 0
+      await pipeline(
+        Readable.fromWeb(body),
+        new Transform({
+          transform(chunk, _encoding, callback) {
+            received += chunk.length
+            report(received, false)
+            callback(null, chunk)
+          },
+        }),
+        createWriteStream(part),
+      )
       if (options.expectedSize !== undefined) {
         const info = await stat(part)
         if (info.size !== options.expectedSize) return undefined
       }
+      report(received, true)
     }
     await rm(options.destination, { force: true })
     await rename(part, options.destination)
@@ -406,9 +452,9 @@ export async function downloadDesktopInstaller(options: {
 }
 
 /**
- * Check for a newer installer, download it silently, then ask for install authorization.
+ * Check for a newer installer, download it silently with progress, then wait for install authorization.
  * Fetch, download, and prompt failures are swallowed so boot still shows the window.
- * @param options - skip flag, feed, cache, and replaceable I/O.
+ * @param options - skip flag, feed, cache, progress sink, and replaceable I/O.
  * @returns nothing.
  */
 export async function offerDesktopUpdate(options: {
@@ -420,6 +466,7 @@ export async function offerDesktopUpdate(options: {
   arch?: string
   fetchReleases?: (url: string) => Promise<unknown>
   fetchBody?: (url: string) => Promise<Uint8Array | NodeWebReadableStream<Uint8Array> | undefined>
+  onProgress?: (progress: DesktopDownloadProgress | undefined) => void
   promptInstall: (update: DesktopUpdate, currentVersion: string, installerPath: string) => Promise<boolean>
   install: (installerPath: string) => Promise<void>
 }): Promise<void> {
@@ -444,11 +491,29 @@ export async function offerDesktopUpdate(options: {
     destination,
     ...(asset.size === undefined ? {} : { expectedSize: asset.size }),
     ...(options.fetchBody === undefined ? {} : { fetchBody: options.fetchBody }),
+    ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
   }).catch(() => undefined)
+  options.onProgress?.(undefined)
   if (installerPath === undefined) return
   const accepted = await options.promptInstall(update, options.currentVersion, installerPath).catch(() => false)
   if (!accepted) return
   await options.install(installerPath).catch(() => undefined)
+}
+
+const PROGRESS_INTERVAL_MS = 100
+
+function createDownloadProgressReporter(
+  onProgress: ((progress: DesktopDownloadProgress) => void) | undefined,
+  total: number | undefined,
+): (received: number, force: boolean) => void {
+  let lastAt = 0
+  return (received, force) => {
+    if (onProgress === undefined) return
+    const now = Date.now()
+    if (!force && now - lastAt < PROGRESS_INTERVAL_MS) return
+    lastAt = now
+    onProgress(total === undefined ? { received } : { received, total })
+  }
 }
 
 function parseReleaseAssets(raw: unknown): DesktopGithubReleaseAsset[] {

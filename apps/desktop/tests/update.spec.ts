@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import {
   checkDesktopUpdate,
@@ -10,6 +11,8 @@ import {
   desktopMacInstallerFileName,
   desktopReleasesUrl,
   desktopUpdateFeedFromIdentity,
+  desktopDownloadProgressPercent,
+  desktopDownloadProgressRatio,
   desktopWindowsInstallerFileName,
   downloadDesktopInstaller,
   isTrustedDesktopDownloadUrl,
@@ -137,10 +140,11 @@ describe('desktop update check', () => {
     })).resolves.toBeUndefined()
   })
 
-  it('downloads the Windows installer silently and installs only after authorization', async () => {
+  it('downloads the Windows installer with progress and installs only after authorization', async () => {
     const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-desktop-update-'))
     const prompted: string[] = []
     const installed: string[] = []
+    const progress: Array<{ received: number; total?: number } | undefined> = []
     let downloaded = false
     await offerDesktopUpdate({
       currentVersion: '0.1.0-rc.8',
@@ -159,6 +163,9 @@ describe('desktop update check', () => {
         downloaded = true
         return new Uint8Array([1, 2, 3, 4])
       },
+      onProgress: (event) => {
+        progress.push(event)
+      },
       promptInstall: async (update, _current, installerPath) => {
         prompted.push(update.version)
         expect(readFileSync(installerPath)).toEqual(Buffer.from([1, 2, 3, 4]))
@@ -169,6 +176,9 @@ describe('desktop update check', () => {
       },
     })
     expect(downloaded).toBe(true)
+    expect(progress[0]).toEqual({ received: 0, total: 4 })
+    expect(progress.at(-2)).toEqual({ received: 4, total: 4 })
+    expect(progress.at(-1)).toBeUndefined()
     expect(prompted).toEqual(['0.1.0-rc.9'])
     expect(installed).toEqual([join(cacheDir, WIN_ASSET.name)])
   })
@@ -242,6 +252,26 @@ describe('desktop installer download', () => {
     expect(isTrustedDesktopDownloadUrl(WIN_ASSET.browser_download_url)).toBe(true)
     expect(isTrustedDesktopDownloadUrl('http://github.com/acme/app/a.exe')).toBe(false)
     expect(desktopInstallerCachePath('/cache', '../escape.exe')).toBeUndefined()
+  })
+
+  it('reports stream download progress and a known percent', async () => {
+    expect(desktopDownloadProgressRatio({ received: 1, total: 4 })).toBe(0.25)
+    expect(desktopDownloadProgressPercent({ received: 1, total: 4 })).toBe(25)
+    expect(desktopDownloadProgressPercent({ received: 1 })).toBeUndefined()
+    const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-desktop-progress-'))
+    const destination = join(cacheDir, WIN_ASSET.name)
+    const seen: Array<{ received: number; total?: number }> = []
+    await expect(downloadDesktopInstaller({
+      url: WIN_ASSET.browser_download_url,
+      destination,
+      expectedSize: 4,
+      fetchBody: async () => Readable.toWeb(Readable.from([Buffer.from('ab'), Buffer.from('cd')])),
+      onProgress: (event) => {
+        seen.push(event)
+      },
+    })).resolves.toBe(destination)
+    expect(seen[0]).toEqual({ received: 0, total: 4 })
+    expect(seen.at(-1)).toEqual({ received: 4, total: 4 })
   })
 
   it('reuses a complete cached installer and rejects a size mismatch', async () => {

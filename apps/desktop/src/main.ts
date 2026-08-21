@@ -14,26 +14,43 @@ import {
   offerDesktopUpdate,
   readGitOriginUrl,
   resolveDesktopUpdateFeed,
+  type DesktopDownloadProgress,
   type DesktopUpdate,
 } from './update.ts'
 import {
+  DESKTOP_UPDATE_ACTION_IPC,
+  DESKTOP_UPDATE_IPC,
   DESKTOP_WINDOW_IPC,
   WINDOW_TITLE,
+  applyDesktopTaskbarProgress,
   applyDesktopWindowAction,
   desktopBrowserWindowOptions,
+  desktopUpdateProgressView,
+  desktopUpdateReadyView,
   desktopWindowChromeCss,
   desktopWindowControlsScript,
   resolveDesktopPreload,
+  type DesktopUpdateProgressView,
 } from './window.ts'
 
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 
 let host: StartedHost | undefined
+let lastDesktopUpdateChrome: DesktopUpdateProgressView = { kind: 'hidden', label: '' }
+let desktopUpdateChromeSent = false
+let resolveDesktopInstall: ((accepted: boolean) => void) | undefined
 
 ipcMain.on(DESKTOP_WINDOW_IPC, (event, action: unknown) => {
   const sender = BrowserWindow.fromWebContents(event.sender)
   if (sender === null) return
   applyDesktopWindowAction(sender, action)
+})
+
+ipcMain.on(DESKTOP_UPDATE_ACTION_IPC, (_event, action: unknown) => {
+  if (action !== 'install' || resolveDesktopInstall === undefined) return
+  const resolve = resolveDesktopInstall
+  resolveDesktopInstall = undefined
+  resolve(true)
 })
 
 /**
@@ -45,6 +62,8 @@ async function applyWindowChrome(target: BrowserWindow): Promise<void> {
   if (target.isDestroyed()) return
   await target.webContents.insertCSS(desktopWindowChromeCss())
   await target.webContents.executeJavaScript(desktopWindowControlsScript())
+  if (!desktopUpdateChromeSent || target.isDestroyed()) return
+  target.webContents.send(DESKTOP_UPDATE_IPC, lastDesktopUpdateChrome)
 }
 
 async function createWindow(url: string): Promise<BrowserWindow> {
@@ -60,29 +79,52 @@ async function createWindow(url: string): Promise<BrowserWindow> {
     void applyWindowChrome(created)
   })
   await created.loadURL(url)
+  await applyWindowChrome(created)
   created.show()
   return created
 }
 
 /**
- * Ask whether to run a silently downloaded installer.
- * @param update - detected installer.
- * @param currentVersion - running `app.getVersion()`.
- * @returns true when the user authorized install.
+ * Paint installer download progress in this window and on the process icon.
+ * @param target - packaged window.
+ * @param progress - bytes received, or `undefined` to hide.
+ * @returns nothing.
  */
-async function promptDesktopInstall(update: DesktopUpdate, currentVersion: string): Promise<boolean> {
-  if (BrowserWindow.getAllWindows().length === 0) return false
-  const choice = await dialog.showMessageBox({
-    type: 'info',
-    title: WINDOW_TITLE,
-    message: `A newer ${WINDOW_TITLE} is ready to install.`,
-    detail: `This window: ${currentVersion}\nAvailable: ${update.version}\nInstalling will close this window.`,
-    buttons: ['Later', 'Install'],
-    defaultId: 0,
-    cancelId: 0,
-    noLink: true,
+function publishDesktopUpdateChrome(target: BrowserWindow, view: DesktopUpdateProgressView): void {
+  desktopUpdateChromeSent = true
+  lastDesktopUpdateChrome = view
+  if (target.isDestroyed()) return
+  target.webContents.send(DESKTOP_UPDATE_IPC, view)
+}
+
+/**
+ * Paint installer download progress in this window and on the process icon.
+ * @param target - packaged window.
+ * @param progress - bytes received, or `undefined` to hide.
+ * @returns nothing.
+ */
+function publishDesktopUpdateProgress(
+  target: BrowserWindow,
+  progress: DesktopDownloadProgress | undefined,
+): void {
+  applyDesktopTaskbarProgress(target, progress)
+  publishDesktopUpdateChrome(target, desktopUpdateProgressView(progress))
+}
+
+/**
+ * Show a small title-bar install button and wait for a click.
+ * Ignoring the button leaves the cached installer for the next launch.
+ * @param update - detected installer.
+ * @returns true when the user clicked the button.
+ */
+async function promptDesktopInstall(update: DesktopUpdate): Promise<boolean> {
+  const target = BrowserWindow.getAllWindows()[0]
+  if (target === undefined) return false
+  applyDesktopTaskbarProgress(target, undefined)
+  publishDesktopUpdateChrome(target, desktopUpdateReadyView(update.version))
+  return await new Promise<boolean>((resolve) => {
+    resolveDesktopInstall = resolve
   })
-  return choice.response === 1
 }
 
 /**
@@ -118,7 +160,7 @@ async function boot(): Promise<void> {
     cwd: process.cwd(),
     input,
   }))
-  await createWindow(host.url)
+  const created = await createWindow(host.url)
   const originUrl = app.isPackaged ? undefined : readGitOriginUrl(resolve(desktopRoot, '..', '..'))
   void offerDesktopUpdate({
     currentVersion: app.getVersion(),
@@ -132,6 +174,9 @@ async function boot(): Promise<void> {
     cacheDir: join(app.getPath('userData'), 'updates'),
     platform: process.platform,
     arch: process.arch,
+    onProgress: (progress) => {
+      publishDesktopUpdateProgress(created, progress)
+    },
     promptInstall: promptDesktopInstall,
     install: installDesktopUpdate,
   })

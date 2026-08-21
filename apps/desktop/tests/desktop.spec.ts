@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -14,11 +14,19 @@ import { parseWebReadyUrl } from '../src/url.ts'
 import {
   DESKTOP_APP_DRAG_ATTR,
   DESKTOP_APP_DRAG_FALLBACK_ID,
+  DESKTOP_UPDATE_ACTION_IPC,
+  DESKTOP_UPDATE_INSTALL_LABEL,
+  DESKTOP_UPDATE_IPC,
+  DESKTOP_UPDATE_PROGRESS_ID,
   TITLE_BAR_DARK,
   TITLE_BAR_LIGHT,
   WINDOW_TITLE,
+  applyDesktopTaskbarProgress,
   applyDesktopWindowAction,
   desktopBrowserWindowOptions,
+  desktopDownloadSizeLabel,
+  desktopUpdateProgressView,
+  desktopUpdateReadyView,
   desktopWindowChromeCss,
   desktopWindowControlsScript,
   resolveDesktopPreload,
@@ -124,6 +132,14 @@ describe('frameless window chrome', () => {
     expect(css).toContain('header[class*="header"]')
     expect(css).toContain('padding-inline-end: 150px')
     expect(css).toContain('#dsh-desktop-window-controls')
+    expect(css).toContain(`#${DESKTOP_UPDATE_PROGRESS_ID}`)
+    expect(css).toContain('right: 150px')
+    expect(css).toContain('pointer-events: none')
+    expect(css).not.toContain('left: 16px; right: 16px; bottom: 16px')
+    expect(css).toContain('[data-part="label"],')
+    expect(css).toContain('scaleX(var(--dsh-desktop-update-ratio, 0))')
+    expect(css).toContain('[data-kind="ready"] [data-part="action"]')
+    expect(css).toContain('prefers-reduced-motion')
     expect(css).toContain(`#${DESKTOP_APP_DRAG_FALLBACK_ID}`)
     expect(desktopWindowControlsScript()).toContain("getElementById('dsh-desktop-drag-region')?.remove()")
     expect(desktopWindowControlsScript()).toContain(DESKTOP_APP_DRAG_FALLBACK_ID)
@@ -149,6 +165,40 @@ describe('frameless window chrome', () => {
     expect(win.maximize).toHaveBeenCalledOnce()
     expect(win.unmaximize).toHaveBeenCalledOnce()
     expect(win.close).toHaveBeenCalledOnce()
+  })
+
+  it('paints silent download progress and a small install button on the process chrome', () => {
+    expect(desktopDownloadSizeLabel(40, 100)).toBe('40 B')
+    expect(desktopDownloadSizeLabel(168 * 1024 * 1024, 407 * 1024 * 1024)).toBe('168 MB')
+    expect(desktopUpdateProgressView(undefined)).toEqual({ kind: 'hidden', label: '' })
+    expect(desktopUpdateProgressView({ received: 40, total: 100 })).toEqual({
+      kind: 'progress',
+      percent: 40,
+      label: 'Update',
+      detail: '40 B of 100 B',
+    })
+    expect(desktopUpdateProgressView({ received: 12 })).toEqual({
+      kind: 'progress',
+      label: 'Update',
+      detail: '12 B',
+    })
+    expect(desktopUpdateReadyView('0.1.0-rc.13')).toEqual({
+      kind: 'ready',
+      label: DESKTOP_UPDATE_INSTALL_LABEL,
+      detail: '0.1.0-rc.13',
+    })
+    const bar = { setProgressBar: vi.fn() }
+    applyDesktopTaskbarProgress(bar, { received: 40, total: 100 })
+    applyDesktopTaskbarProgress(bar, { received: 12 })
+    applyDesktopTaskbarProgress(bar, undefined)
+    expect(bar.setProgressBar).toHaveBeenNthCalledWith(1, 0.4, { mode: 'normal' })
+    expect(bar.setProgressBar).toHaveBeenNthCalledWith(2, 0, { mode: 'indeterminate' })
+    expect(bar.setProgressBar).toHaveBeenNthCalledWith(3, -1)
+    const preload = readFileSync(resolveDesktopPreload(), 'utf8')
+    expect(preload).toContain(DESKTOP_UPDATE_IPC)
+    expect(preload).toContain(DESKTOP_UPDATE_ACTION_IPC)
+    expect(preload).toContain(DESKTOP_UPDATE_PROGRESS_ID)
+    expect(preload).toContain("'install'")
   })
 })
 

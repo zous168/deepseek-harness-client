@@ -15,7 +15,7 @@ pnpm run build
 pnpm dsh desktop
 ```
 
-`dsh desktop` 是启动器别名：它用本包的 `lib/main.js` 启动 Electron，并转发剩余的 web 应用 flag。宿主始终收到 `--no-open`。调用方省略 `--port` 时，宿主向操作系统申请空闲端口。检出目录启动在 CLI 的 Node（`DSH_NODE_EXECUTABLE`）下运行 web 宿主。打包启动设置 `ELECTRON_RUN_AS_NODE=1`，让已部署的 `dsh` bin 按 Node 运行。窗口加载后，shell 查询 GitHub Releases 是否有更新的 `desktop-v*` 或 `dsh-v*` tag，并静默下载当前平台的安装程序（Windows NSIS `.exe`、macOS `.dmg` 或 Linux `.AppImage`）；仅在该文件已缓存后，对话框才请求安装授权。`--no-update-check` 跳过该查询。订阅源是 `DSH_DESKTOP_UPDATE_REPO`，或打包时从 `GITHUB_REPOSITORY` 或 `origin` 写入的 `update-feed.json`。
+`dsh desktop` 是启动器别名：它用本包的 `lib/main.js` 启动 Electron，并转发剩余的 web 应用 flag。宿主始终收到 `--no-open`。调用方省略 `--port` 时，宿主向操作系统申请空闲端口。检出目录启动在 CLI 的 Node（`DSH_NODE_EXECUTABLE`）下运行 web 宿主。打包启动设置 `ELECTRON_RUN_AS_NODE=1`，让已部署的 `dsh` bin 按 Node 运行。窗口加载后，shell 查询 GitHub Releases 是否有更新的 `desktop-v*` 或 `dsh-v*` tag，并静默下载当前平台的安装程序（Windows NSIS `.exe`、macOS `.dmg` 或 Linux `.AppImage`）。会话留在当前窗口；标题栏旁的细进度和进程图标报告进度。文件缓存后，标题栏旁的小 **安装更新** 按钮请求安装授权。`--no-update-check` 跳过该查询。订阅源是 `DSH_DESKTOP_UPDATE_REPO`，或打包时从 `GITHUB_REPOSITORY` 或 `origin` 写入的 `update-feed.json`。
 
 ```sh
 dsh desktop --port 8080
@@ -47,4 +47,4 @@ pnpm run desktop:pack
 - **窗口加载回环 HTTP，而不是 `file://`** — 宿主仍会绑定本地 webserver。IPC 载体尚未交付。
 - **源码启动需要已构建的 CLI 与前端产物** — `dsh desktop` 解析 `apps/cli/lib/bin.js` 以及宿主已经要求的 web dist。
 - **原生安装程序不是 npmjs 产物** — `desktop:pack` 为当前操作系统写入 `release/`；GitHub Packages 与 GitHub Release 承载 Windows `.exe`、macOS `.dmg` 与 Linux `.AppImage`。macOS DMG 未签名（没有 Apple Developer 身份）。
-- **更新安装需要授权** — 下载是静默的；只有用户选择 **Install** 后才会运行安装程序。检查失败或被跳过时，正在运行的窗口不变。
+- **更新安装需要授权** — 下载是静默的，只在标题栏旁显示进度，不会变成全窗口下载页；只有用户点击 **安装更新** 后才会运行安装程序。检查失败或被跳过时，正在运行的窗口不变。
