@@ -106,7 +106,7 @@ describe('desktop pack', () => {
     expect(yml).toMatch(/\nmac:\n(?:  .+\n)*    - dmg\n/)
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
     expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
-    expect(yml).toMatch(/\nwin:\n(?:  .+\n)*  publisherName: zous168\n/)
+    expect(yml).not.toMatch(/publisherName/)
   })
 
   it('closes only DeepSeekHarness.exe and ignores window titles and install-dir prefixes', () => {
