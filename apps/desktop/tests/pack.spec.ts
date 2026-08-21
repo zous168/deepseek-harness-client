@@ -100,11 +100,24 @@ describe('desktop pack', () => {
 
   it('pins the Windows per-machine NSIS options and the macOS and Linux targets', () => {
     const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'electron-builder.yml'), 'utf8')
+    expect(yml).toMatch(/\nnsis:\n(?:  .+\n)*  include: installer.nsh\n/)
     expect(yml).toMatch(/\nnsis:\n(?:  .+\n)*  perMachine: true\n/)
     expect(yml).toMatch(/\nnsis:\n(?:  .+\n)*  selectPerMachineByDefault: true\n/)
     expect(yml).toMatch(/\nmac:\n(?:  .+\n)*    - dmg\n/)
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
     expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
+    expect(yml).toMatch(/\nwin:\n(?:  .+\n)*  publisherName: zous168\n/)
+  })
+
+  it('closes only DeepSeekHarness.exe and ignores window titles and install-dir prefixes', () => {
+    const nsh = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'installer.nsh'), 'utf8')
+    expect(nsh).toContain('!macro customCheckAppRunning')
+    expect(nsh).toContain('IMAGENAME eq ${APP_EXECUTABLE_FILENAME}')
+    expect(nsh).toContain('findstr.exe')
+    expect(nsh).toContain('/B /I /C:"\\"${APP_EXECUTABLE_FILENAME}\\""')
+    expect(nsh).not.toContain("StartsWith('$INSTDIR'")
+    expect(nsh).not.toMatch(/FindWindow/)
+    expect(nsh).not.toMatch(/nsProcess::/)
   })
 
   it('names the Electron dist entry electron-builder renames', () => {
@@ -137,8 +150,10 @@ describe('desktop pack', () => {
   it('uses a product description on the desktop package, not the implementation note', () => {
     const manifest = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')) as {
       description: string
+      author: string
     }
     expect(manifest.description).toBe('DeepSeek Harness desktop application')
+    expect(manifest.author).toBe('zous168')
     expect(manifest.description).not.toMatch(/loopback|web profile/i)
   })
 

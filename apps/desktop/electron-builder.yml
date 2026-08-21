@@ -1,7 +1,7 @@
 appId: ai.deepseek.harness
 productName: DeepSeek Harness
 executableName: DeepSeekHarness
-copyright: Copyright © DeepSeek
+copyright: Copyright © zous168
 directories:
   output: release
   buildResources: icons
@@ -11,6 +11,7 @@ files:
   - icons/**
 icon: icons/icon.png
 win:
+  publisherName: zous168
   target:
     - nsis
   icon: icons/icon.png
@@ -27,6 +28,7 @@ linux:
   icon: icons/icon.png
   category: Development
 nsis:
+  include: installer.nsh
   oneClick: false
   perMachine: true
   selectPerMachineByDefault: true

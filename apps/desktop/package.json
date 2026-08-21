@@ -1,6 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
   "description": "DeepSeek Harness desktop application",
+  "author": "zous168",
   "version": "0.1.0-rc.10",
   "publishConfig": {
     "access": "public"
