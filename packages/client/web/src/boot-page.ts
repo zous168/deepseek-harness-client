@@ -33,13 +33,18 @@ export class BootPage {
   constructor(container: HTMLElement) {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
+    const dragHandle = div(css.dragHandle)
+    dragHandle.dataset.dshAppDrag = ''
+    dragHandle.setAttribute('aria-hidden', 'true')
     this.card = div(css.card)
     this.wordmark = div(css.wordmark, 'HARNESS')
+    this.wordmark.dataset.dshBootWordmark = ''
+    this.wordmark.dataset.dshAppDrag = ''
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
     this.hint = div(css.hint, 'Loading plugins…')
     this.card.append(this.wordmark, this.spinner, this.hint)
-    this.root.append(this.card)
+    this.root.append(dragHandle, this.card)
     container.append(this.root)
     this.updateProgress()
   }

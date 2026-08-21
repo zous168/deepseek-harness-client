@@ -56,7 +56,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns the hidden blank-session header or visible title and tabs.
+ * @returns a blank-session drag handle, or the visible title and tabs.
  */
 export function ConversationSessionHeader({
   sessionId, useSession, useSessions, useStore, actions,
@@ -76,7 +76,9 @@ export function ConversationSessionHeader({
       className={clsx(css.header, hideChrome && css.headerHidden)}
       aria-hidden={hideChrome || undefined}
     >
-      {!hideChrome && (
+      {hideChrome ? (
+        <div className={css.dragHandle} data-dsh-app-drag="" />
+      ) : (
         <>
           <div className={css.titleRow}>
             <div className={css.titleCluster}>
@@ -103,6 +105,7 @@ export function ConversationSessionHeader({
                 {renderSlot('conversation.session.header.actions', {})}
               </div>
             </div>
+            <div className={css.dragHandle} data-dsh-app-drag="" aria-hidden="true" />
             <div className={css.headerUtilities}>
               {renderSlot('conversation.session.header.utilities', {})}
             </div>

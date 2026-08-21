@@ -12,6 +12,8 @@ import { resolveHostPlan, startHost, type HostProcessSpawner } from '../src/host
 import { resolveDesktopIcon } from '../src/icon.ts'
 import { parseWebReadyUrl } from '../src/url.ts'
 import {
+  DESKTOP_APP_DRAG_ATTR,
+  DESKTOP_APP_DRAG_FALLBACK_ID,
   TITLE_BAR_DARK,
   TITLE_BAR_LIGHT,
   WINDOW_TITLE,
@@ -106,24 +108,26 @@ describe('frameless window chrome', () => {
       .toBe(TITLE_BAR_LIGHT)
   })
 
-  it('makes chrome surfaces drag and every interactive control no-drag', () => {
+  it('makes only opted-in drag handles drag and leaves content boxes clickable', () => {
     const css = desktopWindowChromeCss()
+    expect(css).toContain(`[${DESKTOP_APP_DRAG_ATTR}] { -webkit-app-region: drag; }`)
     expect(css).not.toContain('#root { -webkit-app-region: no-drag; }')
-    expect(css).toContain('[data-phase="hero"]')
-    expect(css).toContain('-webkit-app-region: drag')
+    expect(css).not.toContain('[data-phase="hero"]')
+    expect(css).not.toContain('[class*="logoRow"]')
+    expect(css).not.toContain('header [class*="titleRow"]')
     expect(css).toContain('-webkit-app-region: no-drag')
     expect(css).toContain(':is(button, a, input, textarea, select')
-    expect(css).toContain('header [class*="headerUtilities"]')
-    expect(css).toContain('[class*="logoRow"] [class*="brand"]')
-    expect(css).toContain('[role="dialog"]')
     expect(css).toContain('html:has([aria-modal="true"])')
-    expect(css).not.toContain('html:has([role="dialog"])')
-    expect(css).not.toContain('header * {')
+    expect(css).toContain('html:has([role="dialog"])')
+    expect(css).toContain('html:has(body > [role="presentation"])')
     expect(css).not.toContain('#dsh-desktop-drag-region')
     expect(css).toContain('header[class*="header"]')
     expect(css).toContain('padding-inline-end: 150px')
     expect(css).toContain('#dsh-desktop-window-controls')
+    expect(css).toContain(`#${DESKTOP_APP_DRAG_FALLBACK_ID}`)
     expect(desktopWindowControlsScript()).toContain("getElementById('dsh-desktop-drag-region')?.remove()")
+    expect(desktopWindowControlsScript()).toContain(DESKTOP_APP_DRAG_FALLBACK_ID)
+    expect(desktopWindowControlsScript()).toContain('[data-dsh-boot]')
     expect(desktopWindowControlsScript()).toContain('dshDesktopWindow')
   })
 

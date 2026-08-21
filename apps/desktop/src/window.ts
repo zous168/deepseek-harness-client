@@ -123,7 +123,13 @@ export function applyDesktopWindowAction(win: DesktopWindowCommands, action: unk
   }
 }
 
-/** Interactive widgets that must receive clicks inside a drag surface. */
+/** Only empty handles marked with this attribute become Electron drag surfaces. */
+export const DESKTOP_APP_DRAG_ATTR = 'data-dsh-app-drag'
+
+/** Injected top-strip handle while the page has no chrome `[data-dsh-app-drag]`. */
+export const DESKTOP_APP_DRAG_FALLBACK_ID = 'dsh-desktop-drag-fallback'
+
+/** Interactive widgets that must receive clicks if they sit on a drag handle. */
 const DESKTOP_NO_DRAG_CONTROLS = [
   'button', 'a', 'input', 'textarea', 'select',
   '[role="button"]', '[role="tab"]', '[role="menuitem"]',
@@ -132,50 +138,40 @@ const DESKTOP_NO_DRAG_CONTROLS = [
   '[contenteditable="true"]',
 ].join(', ')
 
+/** Portaled overlays and any dialog; used by CSS `:has` and the inject script. */
+const DESKTOP_OVERLAY_SELECTOR = [
+  '[aria-modal="true"]',
+  '[role="dialog"]',
+  'body > [role="presentation"]',
+].join(', ')
+
 /**
  * CSS injected into the loaded Web UI so the frameless window can be moved.
- * Drag is only on chrome boxes. `#root` is not `no-drag`: an ancestor
- * `no-drag` on Windows swallows descendant `drag`. The sidebar brand is a
- * New Session button, so it is re-marked `drag` after the control rule —
- * the dedicated New Session control stays clickable. Electron hit-tests
- * `-webkit-app-region` independently of overlay paint, so an open
- * `[aria-modal="true"]` turns chrome drag off. Header action clusters,
- * every other interactive control, and the dialog tree stay `no-drag`.
- * A leftover sibling overlay strip is removed on inject.
+ * Drag is only `[data-dsh-app-drag]` handles — never a header, hero column, or
+ * other content box. While the framework-free boot page is visible, or the
+ * page has not opted in a chrome handle, the shell injects one top-strip
+ * fallback and marks the boot wordmark. Chrome handles replace that fallback.
+ * Controls on a handle stay `no-drag`. Electron hit-tests `-webkit-app-region`
+ * independently of overlay paint, so any matching overlay turns those handles
+ * off. A leftover sibling overlay strip is removed on inject.
  * @returns a stylesheet body.
  */
 export function desktopWindowChromeCss(): string {
-  const chrome = [
-    'header',
-    '[class*="logoRow"]',
-    '[data-phase="hero"]',
-    'header [class*="titleRow"]',
-    'header [class*="titleCluster"]',
-    'header [class*="tabs"]',
+  const handle = `[${DESKTOP_APP_DRAG_ATTR}]`
+  const whenOverlay = (suffix: string) => [
+    `html[data-dsh-desktop-overlay] ${suffix}`,
+    ...DESKTOP_OVERLAY_SELECTOR.split(', ').map(sel => `html:has(${sel}) ${suffix}`),
   ].join(', ')
-  const brand = '[class*="logoRow"] [class*="brand"], [class*="logoRow"] [class*="brand"] *'
-  const whenModal = (suffix: string) => `html:has([aria-modal="true"]) ${suffix}`
   return [
-    `${chrome} {`,
-    '  -webkit-app-region: drag;',
-    '  background-color: inherit;',
-    '}',
-    'header, [class*="logoRow"] {',
-    '  position: relative; z-index: 1;',
-    '}',
-    'header [class*="headerActions"], header [class*="headerUtilities"],',
-    'header [class*="headerActions"] *, header [class*="headerUtilities"] *,',
-    `:is(${DESKTOP_NO_DRAG_CONTROLS}),`,
-    `:is(${DESKTOP_NO_DRAG_CONTROLS}) *,`,
-    '[role="dialog"], [role="dialog"] *,',
-    '[aria-modal="true"], [aria-modal="true"] * {',
+    `${handle} { -webkit-app-region: drag; }`,
+    `${handle} :is(${DESKTOP_NO_DRAG_CONTROLS}),`,
+    `${handle} :is(${DESKTOP_NO_DRAG_CONTROLS}) * {`,
     '  -webkit-app-region: no-drag;',
     '}',
-    `${brand} { -webkit-app-region: drag; }`,
-    `${whenModal(`:is(${chrome})`)}, ${whenModal(brand)} {`,
-    '  -webkit-app-region: no-drag;',
+    `${whenOverlay(handle)} { -webkit-app-region: no-drag; }`,
+    `#${DESKTOP_APP_DRAG_FALLBACK_ID} {`,
+    '  position: fixed; top: 0; right: 150px; left: 0; z-index: 1; height: 36px;',
     '}',
-    `${whenModal('#dsh-desktop-window-controls')} { visibility: hidden; }`,
     /* Conversation `.header` sets `padding: 12px 28px 0 20px` (class beats `header`). */
     'header[class*="header"] { padding-inline-end: 150px; }',
     '#dsh-desktop-window-controls {',
@@ -193,13 +189,60 @@ export function desktopWindowChromeCss(): string {
 }
 
 /**
- * Page script that mounts the minimize / maximize / close cluster.
- * Idempotent so Client navigations can run it again.
+ * Page script that mounts the minimize / maximize / close cluster, keeps
+ * `html[data-dsh-desktop-overlay]` in sync with any dialog or body overlay,
+ * and keeps a top-strip drag fallback while the boot page is visible.
+ * Overlay sync is idempotent so Client navigations can run it again.
  * @returns a script body for `executeJavaScript`.
  */
 export function desktopWindowControlsScript(): string {
   return `(() => {
   document.getElementById('dsh-desktop-drag-region')?.remove()
+  const overlaySel = ${JSON.stringify(DESKTOP_OVERLAY_SELECTOR)}
+  const dragAttr = ${JSON.stringify(DESKTOP_APP_DRAG_ATTR)}
+  const fallbackId = ${JSON.stringify(DESKTOP_APP_DRAG_FALLBACK_ID)}
+  const syncOverlay = () => {
+    document.documentElement.toggleAttribute(
+      'data-dsh-desktop-overlay',
+      document.querySelector(overlaySel) !== null,
+    )
+  }
+  const syncFallback = () => {
+    const boot = document.querySelector('[data-dsh-boot]')
+    if (boot !== null) {
+      const title = boot.querySelector('[data-dsh-boot-wordmark]')
+        ?? boot.querySelector(':scope > * > :first-child')
+      if (title !== null) title.setAttribute(dragAttr, '')
+    }
+    const chromeHandle = [...document.querySelectorAll('[' + dragAttr + ']')].some(el => (
+      el.id !== fallbackId && el.closest('[data-dsh-boot]') === null
+    ))
+    const fallback = document.getElementById(fallbackId)
+    if (chromeHandle) {
+      fallback?.remove()
+      return
+    }
+    if (fallback !== null) return
+    const strip = document.createElement('div')
+    strip.id = fallbackId
+    strip.setAttribute(dragAttr, '')
+    strip.setAttribute('aria-hidden', 'true')
+    document.documentElement.appendChild(strip)
+  }
+  const sync = () => {
+    syncOverlay()
+    syncFallback()
+  }
+  if (globalThis.__dshDesktopOverlaySync === undefined) {
+    globalThis.__dshDesktopOverlaySync = sync
+    new MutationObserver(sync).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['role', 'aria-modal'],
+    })
+  }
+  sync()
   const api = globalThis.dshDesktopWindow
   if (api === undefined || document.getElementById('dsh-desktop-window-controls') !== null) return
   const root = document.createElement('div')

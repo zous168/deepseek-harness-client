@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-DeepSeek Harness Web UI 的打包 Electron 窗口。该 shell 将现有 `web` profile 作为子进程启动，等待 `dsh web:` 就绪行，然后加载该回环 URL。窗口无边框（`frame: false`）：会话 header、侧栏 logo 行、空白欢迎列与产品标题可拖拽窗口；header 操作簇、其余交互控件和打开中的模态框仍可点击。shell 注入最小化／最大化／关闭。窗口与安装程序使用 [`icons/icon.svg`](icons/icon.svg) 中品牌蓝底上的 DeepSeek 鲸鱼标。
+DeepSeek Harness Web UI 的打包 Electron 窗口。该 shell 将现有 `web` profile 作为子进程启动，等待 `dsh web:` 就绪行，然后加载该回环 URL。窗口无边框（`frame: false`）：只有 `[data-dsh-app-drag]` 把手可拖拽窗口。Web chrome 会主动标出这些把手；启动页仍可见或页面尚未标出 chrome 把手时，shell 会注入一条顶栏回退把手并标出启动页字标。会话内容、header 控件和打开中的模态框仍可点击。shell 注入最小化／最大化／关闭。窗口与安装程序使用 [`icons/icon.svg`](icons/icon.svg) 中品牌蓝底上的 DeepSeek 鲸鱼标。
 
 这是一个应用，不是新的能力族。Host、Client 与 web-app 插件仍留在原处；桌面包只拥有原生窗口和安装程序布局。[`dsh-host-webserver`](../../packages/host/webserver/README.md) 上记录的 `file://` 加 IPC 载体不是这个 shell。
 

@@ -1,6 +1,7 @@
 /* The framework-free boot page cannot depend on theme delivery succeeding. */
 
 .boot {
+  position: relative;
   --dsh-boot-bg: #fff;
   --dsh-boot-label-primary: #0f1115;
   --dsh-boot-label-secondary: #61666b;
@@ -12,6 +13,15 @@
   display: grid;
   place-items: center;
   background: var(--dsw-alias-bg-base, var(--dsh-boot-bg));
+}
+
+/* Empty strip the desktop shell maps to `-webkit-app-region: drag`. */
+.dragHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 36px;
 }
 
 :global(body[data-ds-dark-theme]) .boot {
