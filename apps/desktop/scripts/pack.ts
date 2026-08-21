@@ -179,6 +179,37 @@ function listInstalledPackageNames(nodeModules: string): string[] {
   return names
 }
 
+/** Source-map suffixes the packaged host never reads. */
+const RUNTIME_SOURCE_MAP_SUFFIXES = ['.js.map', '.mjs.map', '.cjs.map', '.d.ts.map', '.css.map'] as const
+
+/**
+ * Delete source maps from the deployed runtime.
+ * The packaged host executes built JavaScript; a plugin client-bundle map
+ * request answers 404 rather than failing the response.
+ * @param runtimeRoot - `apps/desktop/runtime`.
+ * @returns the number of files removed.
+ */
+export function pruneDesktopRuntimeSourceMaps(runtimeRoot: string): number {
+  if (!existsSync(runtimeRoot)) return 0
+  let removed = 0
+  const stack = [runtimeRoot]
+  while (stack.length > 0) {
+    const directory = stack.pop() as string
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        stack.push(path)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (!RUNTIME_SOURCE_MAP_SUFFIXES.some(suffix => entry.name.endsWith(suffix))) continue
+      rmSync(path)
+      removed += 1
+    }
+  }
+  return removed
+}
+
 /**
  * Electron binary name inside `electron/dist` for this pack host.
  * @param platform - `process.platform` unless a test names one.
@@ -351,6 +382,7 @@ export async function packDesktopInstaller(): Promise<void> {
   rmSync(runtimeRoot, { recursive: true, force: true })
   runPnpm(desktopDeployArgs(runtimeRoot), repoRoot)
   restoreDesktopWorkspaceClosure(runtimeRoot, repoRoot)
+  pruneDesktopRuntimeSourceMaps(runtimeRoot)
   assertDesktopRuntime(runtimeRoot)
   if (feed !== undefined) writeDesktopUpdateFeedFile(updateFeedPath, feed)
   writeFileSync(manifestPath, `${JSON.stringify(desktopBuilderManifest(JSON.parse(original) as DesktopPackManifest), null, 2)}\n`)

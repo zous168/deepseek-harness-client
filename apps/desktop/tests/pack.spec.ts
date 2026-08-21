@@ -13,6 +13,7 @@ import {
   desktopElectronDistEntry,
   desktopPackagedRuntimeRoot,
   desktopRepoRoot,
+  pruneDesktopRuntimeSourceMaps,
   restoreDesktopWorkspaceClosure,
   writeDesktopUpdateFeedFile,
 } from '../scripts/pack.ts'
@@ -107,6 +108,27 @@ describe('desktop pack', () => {
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
     expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
     expect(yml).not.toMatch(/publisherName/)
+  })
+
+  it('removes the installed tree in place instead of renaming it under the temp directory', () => {
+    const nsh = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'installer.nsh'), 'utf8')
+    expect(nsh).toMatch(/!macro customRemoveFiles\n  SetOutPath \$TEMP\n  RMDir \/r \$INSTDIR\n!macroend\n/)
+  })
+
+  it('deletes source maps from the deployed runtime and keeps the executed JavaScript', () => {
+    const runtimeRoot = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-prune-'))
+    const nested = join(runtimeRoot, 'node_modules', '@scope', 'pkg', 'esm')
+    mkdirSync(nested, { recursive: true })
+    for (const name of ['index.js', 'index.js.map', 'index.d.ts', 'index.d.ts.map', 'style.css.map']) {
+      writeFileSync(join(nested, name), '{}\n')
+    }
+    expect(pruneDesktopRuntimeSourceMaps(runtimeRoot)).toBe(3)
+    expect(existsSync(join(nested, 'index.js'))).toBe(true)
+    expect(existsSync(join(nested, 'index.d.ts'))).toBe(true)
+    expect(existsSync(join(nested, 'index.js.map'))).toBe(false)
+    expect(existsSync(join(nested, 'index.d.ts.map'))).toBe(false)
+    expect(existsSync(join(nested, 'style.css.map'))).toBe(false)
+    expect(pruneDesktopRuntimeSourceMaps(join(runtimeRoot, 'absent'))).toBe(0)
   })
 
   it('closes only DeepSeekHarness.exe and ignores window titles and install-dir prefixes', () => {

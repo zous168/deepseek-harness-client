@@ -10,6 +10,19 @@ Var pid
   Pop ${_RETURN}
 !macroend
 
+; Remove the installed tree where it stands. electron-builder's update path
+; first renames every installed file into $PLUGINSDIR\old-install; that
+; destination prefix is longer than the install directory, so the deepest
+; resources\runtime\node_modules entries cross MAX_PATH, the rename fails, the
+; uninstaller aborts, and setup reports that the app cannot be closed. In-place
+; removal keeps every path at its installed length; it gives up the rename's
+; restore-on-failure step, so a partial delete leaves the new files to overwrite
+; what remains.
+!macro customRemoveFiles
+  SetOutPath $TEMP
+  RMDir /r $INSTDIR
+!macroend
+
 !macro customCheckAppRunning
   ${GetProcessInfo} 0 $pid $1 $2 $3 $4
   ${if} $3 != "${APP_EXECUTABLE_FILENAME}"
