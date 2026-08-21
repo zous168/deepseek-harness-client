@@ -32,4 +32,4 @@ nsis:
   perMachine: true
   selectPerMachineByDefault: true
   allowToChangeInstallationDirectory: true
-artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+artifactName: DeepSeek.Harness-${version}-${os}-${arch}.${ext}

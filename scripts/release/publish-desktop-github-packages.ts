@@ -9,7 +9,11 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } 
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
-import { desktopInstallerFileNames, desktopWindowsInstallerFileName } from '../../apps/desktop/src/update.ts'
+import {
+  desktopInstallerFileNames,
+  desktopWindowsInstallerFileName,
+  normalizeDesktopInstallerAssetName,
+} from '../../apps/desktop/src/update.ts'
 import { attempt, attemptEchoed } from './process.ts'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -42,16 +46,17 @@ export function githubPackagesDesktopName(owner: string): string {
 
 /**
  * Platform id encoded in an electron-builder artifact name.
- * @param installer - `DeepSeek Harness-<version>-<id>.<ext>`.
+ * @param installer - `DeepSeek.Harness-<version>-<id>.<ext>`.
  * @param version - repository version.
  * @returns `win-x64`, `mac-arm64`, `linux-x86_64`, or another packed id.
  */
 export function desktopInstallerPlatformId(installer: string, version: string): string {
-  const prefix = `DeepSeek Harness-${version}-`
-  if (!installer.startsWith(prefix)) {
+  const prefix = `DeepSeek.Harness-${version}-`
+  const normalized = normalizeDesktopInstallerAssetName(installer)
+  if (!normalized.startsWith(prefix)) {
     throw new Error(`desktop publish: ${installer} is not a DeepSeek Harness ${version} installer`)
   }
-  const stem = installer.slice(prefix.length)
+  const stem = normalized.slice(prefix.length)
   for (const ext of ['.exe', '.dmg', '.AppImage'] as const) {
     if (stem.endsWith(ext)) return stem.slice(0, -ext.length)
   }

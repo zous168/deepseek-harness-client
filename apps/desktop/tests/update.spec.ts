@@ -17,6 +17,7 @@ import {
   downloadDesktopInstaller,
   isTrustedDesktopDownloadUrl,
   newestDesktopUpdate,
+  normalizeDesktopInstallerAssetName,
   offerDesktopUpdate,
   parseDesktopUpdateRepo,
   readGitOriginUrl,
@@ -26,8 +27,8 @@ import {
 } from '../src/update.ts'
 
 const WIN_ASSET = {
-  name: 'DeepSeek Harness-0.1.0-rc.9-win-x64.exe',
-  browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-win-x64.exe',
+  name: 'DeepSeek.Harness-0.1.0-rc.9-win-x64.exe',
+  browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek.Harness-0.1.0-rc.9-win-x64.exe',
   size: 4,
 }
 
@@ -233,14 +234,21 @@ describe('desktop installer download', () => {
   it('selects the trusted Windows, macOS, or Linux installer asset for this platform', () => {
     const macAsset = {
       name: desktopMacInstallerFileName('0.1.0-rc.9', 'arm64'),
-      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-mac-arm64.dmg',
+      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek.Harness-0.1.0-rc.9-mac-arm64.dmg',
     }
     const linuxAsset = {
       name: desktopLinuxInstallerFileName('0.1.0-rc.9', 'x64'),
-      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x86_64.AppImage',
+      browser_download_url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek.Harness-0.1.0-rc.9-linux-x86_64.AppImage',
     }
     expect(desktopWindowsInstallerFileName('0.1.0-rc.9')).toBe(WIN_ASSET.name)
+    expect(normalizeDesktopInstallerAssetName('DeepSeek Harness-0.1.0-rc.9-win-x64.exe')).toBe(WIN_ASSET.name)
     expect(selectDesktopInstallerAsset([WIN_ASSET], '0.1.0-rc.9', 'win32', 'x64')).toEqual(WIN_ASSET)
+    expect(selectDesktopInstallerAsset([{
+      ...WIN_ASSET,
+      name: 'DeepSeek Harness-0.1.0-rc.9-win-x64.exe',
+    }], '0.1.0-rc.9', 'win32', 'x64')).toMatchObject({
+      name: 'DeepSeek Harness-0.1.0-rc.9-win-x64.exe',
+    })
     expect(selectDesktopInstallerAsset([macAsset], '0.1.0-rc.9', 'darwin', 'arm64')).toEqual(macAsset)
     expect(selectDesktopInstallerAsset([linuxAsset], '0.1.0-rc.9', 'linux', 'x64')).toEqual(linuxAsset)
     expect(selectDesktopInstallerAsset([WIN_ASSET], '0.1.0-rc.9', 'darwin', 'arm64')).toBeUndefined()
@@ -298,7 +306,7 @@ describe('desktop installer download', () => {
     const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-desktop-appimage-'))
     const destination = join(cacheDir, desktopLinuxInstallerFileName('0.1.0-rc.9', 'x64'))
     await expect(downloadDesktopInstaller({
-      url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek%20Harness-0.1.0-rc.9-linux-x86_64.AppImage',
+      url: 'https://github.com/zous168/deepseek-harness-client/releases/download/desktop-v0.1.0-rc.9/DeepSeek.Harness-0.1.0-rc.9-linux-x86_64.AppImage',
       destination,
       fetchBody: async () => new Uint8Array([1, 2, 3, 4]),
     })).resolves.toBe(destination)

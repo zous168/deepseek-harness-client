@@ -42,7 +42,7 @@ export interface DesktopUpdate {
 
 /** One GitHub Release asset the downloader may fetch. */
 export interface DesktopGithubReleaseAsset {
-  /** File name on the Release, such as `DeepSeek Harness-0.1.0-rc.9-win-x64.exe`. */
+  /** File name on the Release, such as `DeepSeek.Harness-0.1.0-rc.9-win-x64.exe`. */
   readonly name: string
   /** HTTPS browser download URL. */
   readonly browser_download_url: string
@@ -260,32 +260,43 @@ export async function checkDesktopUpdate(options: {
 }
 
 /**
+ * GitHub Release spelling of an electron-builder artifact name.
+ * GitHub replaces spaces in asset names with `.`, so a packed
+ * `DeepSeek Harness-…` file is published as `DeepSeek.Harness-…`.
+ * @param name - packed or published installer file name.
+ * @returns the name with spaces folded to `.`.
+ */
+export function normalizeDesktopInstallerAssetName(name: string): string {
+  return name.replaceAll(' ', '.')
+}
+
+/**
  * Windows NSIS file name published by `desktop:pack`.
  * @param version - semver from the release tag.
- * @returns the artifact name under the GitHub Release.
+ * @returns the artifact name GitHub Releases stores.
  */
 export function desktopWindowsInstallerFileName(version: string): string {
-  return `DeepSeek Harness-${version}-win-x64.exe`
+  return `DeepSeek.Harness-${version}-win-x64.exe`
 }
 
 /**
  * macOS DMG file name published by `desktop:pack` on that architecture.
  * @param version - semver from the release tag.
  * @param arch - `arm64` or `x64`.
- * @returns the artifact name under the GitHub Release.
+ * @returns the artifact name GitHub Releases stores.
  */
 export function desktopMacInstallerFileName(version: string, arch: 'arm64' | 'x64'): string {
-  return `DeepSeek Harness-${version}-mac-${arch}.dmg`
+  return `DeepSeek.Harness-${version}-mac-${arch}.dmg`
 }
 
 /**
  * Linux AppImage file name published by `desktop:pack` on that architecture.
  * @param version - semver from the release tag.
  * @param arch - `arm64` or `x64`. electron-builder writes `x86_64` for `x64`.
- * @returns the artifact name under the GitHub Release.
+ * @returns the artifact name GitHub Releases stores.
  */
 export function desktopLinuxInstallerFileName(version: string, arch: 'arm64' | 'x64'): string {
-  return `DeepSeek Harness-${version}-linux-${arch === 'x64' ? 'x86_64' : arch}.AppImage`
+  return `DeepSeek.Harness-${version}-linux-${arch === 'x64' ? 'x86_64' : arch}.AppImage`
 }
 
 /**
@@ -353,8 +364,10 @@ export function selectDesktopInstallerAsset(
 ): DesktopGithubReleaseAsset | undefined {
   const expected = desktopInstallerFileNameForPlatform(version, platform, arch)
   if (expected === undefined) return undefined
+  const want = normalizeDesktopInstallerAssetName(expected)
   return assets.find((asset) => {
-    return asset.name === expected && isTrustedDesktopDownloadUrl(asset.browser_download_url)
+    return normalizeDesktopInstallerAssetName(asset.name) === want
+      && isTrustedDesktopDownloadUrl(asset.browser_download_url)
   })
 }
 

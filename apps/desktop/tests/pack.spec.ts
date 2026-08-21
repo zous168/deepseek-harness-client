@@ -107,6 +107,7 @@ describe('desktop pack', () => {
     expect(yml).toMatch(/\nmac:\n(?:  .+\n)*    - dmg\n/)
     expect(yml).toMatch(/\nlinux:\n(?:  .+\n)*    - AppImage\n/)
     expect(yml).toMatch(/^executableName: DeepSeekHarness$/m)
+    expect(yml).toMatch(/^artifactName: DeepSeek\.Harness-\$\{version\}-\$\{os\}-\$\{arch\}\.\$\{ext\}$/m)
     expect(yml).not.toMatch(/publisherName/)
   })
 
