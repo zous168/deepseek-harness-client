@@ -25,6 +25,9 @@ const OFFICIAL_CLIENT_BUILD_ENVIRONMENT = {
 /** Public variable carrying the source commit embedded in client artifacts. */
 const CLIENT_COMMIT_HASH_VARIABLE = 'DSH_CLIENT_COMMIT_HASH'
 
+/** Public variable carrying the released version embedded in client artifacts. */
+const CLIENT_VERSION_VARIABLE = 'DSH_CLIENT_VERSION'
+
 /** Repository-relative path of the complete client build record. */
 export const CLIENT_BUILD_RECORD_PATH = '.dsh-build/client-build-environment.json'
 
@@ -58,6 +61,29 @@ export function repositoryCommitHash(root: string, environment: NodeJS.ProcessEn
 }
 
 /**
+ * Resolve the released version the client artifacts report to a reader.
+ *
+ * The dsh release family shares one version across every manifest, so the
+ * workspace root carries the number a running build should name.
+ * @param root - repository root whose manifest names the built version.
+ * @param environment - environment that may already carry a version value.
+ * @returns the shared dsh family version.
+ */
+export function repositoryVersion(root: string, environment: NodeJS.ProcessEnv = process.env): string {
+  const explicit = environment[CLIENT_VERSION_VARIABLE]
+  if (explicit !== undefined) {
+    if (explicit === '') throw new Error(`${CLIENT_VERSION_VARIABLE} must not be empty`)
+    return explicit
+  }
+  const manifest: unknown = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
+  const version = isObject(manifest) ? manifest.version : undefined
+  if (typeof version !== 'string' || version === '') {
+    throw new Error(`${root}/package.json must declare a non-empty string version`)
+  }
+  return version
+}
+
+/**
  * Resolve the exact public values required by an official build at one commit.
  * @param root - repository root whose HEAD must match the built source.
  * @param environment - optional explicit commit source for non-Git build environments.
@@ -69,6 +95,7 @@ export function officialClientBuildEnvironment(
 ): Readonly<Record<`DSH_CLIENT_${string}`, string>> {
   return {
     DSH_CLIENT_COMMIT_HASH: repositoryCommitHash(root, environment),
+    DSH_CLIENT_VERSION: repositoryVersion(root, environment),
     ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT,
   }
 }
@@ -118,7 +145,15 @@ export function resolveClientBuildEnvironment(
     if (commitHash === undefined) {
       throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} is required for the official client build profile`)
     }
-    return { DSH_CLIENT_COMMIT_HASH: commitHash, ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT }
+    const version = environment[CLIENT_VERSION_VARIABLE]
+    if (version === undefined) {
+      throw new Error(`${CLIENT_VERSION_VARIABLE} is required for the official client build profile`)
+    }
+    return {
+      DSH_CLIENT_COMMIT_HASH: commitHash,
+      DSH_CLIENT_VERSION: version,
+      ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT,
+    }
   }
   throw new Error(`unknown client build profile ${JSON.stringify(profile)}; expected "official"`)
 }

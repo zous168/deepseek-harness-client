@@ -104,6 +104,7 @@ describe('release families', () => {
     const vendor = releaseFamily('vendor')
     const officialEnvironment = officialClientBuildEnvironment(resolve(import.meta.dirname, '../..'))
     vi.stubEnv('DSH_CLIENT_COMMIT_HASH', officialEnvironment.DSH_CLIENT_COMMIT_HASH)
+    vi.stubEnv('DSH_CLIENT_VERSION', officialEnvironment.DSH_CLIENT_VERSION)
     const official = buildFixture(officialEnvironment)
     const defaultBuild = buildFixture({})
 

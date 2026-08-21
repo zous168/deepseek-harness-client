@@ -7,6 +7,7 @@ import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import type { TriggerContentProps } from '../src/client/chrome.tsx'
 import { SettingsDocumentAction } from '../src/client/SettingsDocumentAction.tsx'
+import { VersionRow } from '../src/client/VersionRow.tsx'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsDocumentStore } from '../src/client/settings-document-store.ts'
 
@@ -17,7 +18,10 @@ function derivedDocumentStore(api: object) {
 }
 import { en } from '../src/client/locales.ts'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllEnvs()
+})
 
 // The seat's key domain is settings ∪ common; the stub answers from the
 // package dictionary and falls back to the key like the real chain.
@@ -62,6 +66,21 @@ describe('GeneralSection', () => {
     const { renderSlot } = mount()
     expect(renderSlot).toHaveBeenCalledWith('settings.general.item', {})
     expect(screen.getByTestId('slot-settings.general.item')).toBeTruthy()
+  })
+})
+
+describe('VersionRow', () => {
+  it('names the version the client artifacts embedded', () => {
+    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3-rc.4')
+    render(<VersionRow {...kit} t={t} />)
+    expect(screen.getByText('Version')).toBeTruthy()
+    expect(screen.getByText('1.2.3-rc.4')).toBeTruthy()
+  })
+
+  it('says so when an unbuilt run embedded no version', () => {
+    vi.stubEnv('DSH_CLIENT_VERSION', undefined)
+    render(<VersionRow {...kit} t={t} />)
+    expect(screen.getByText('Development build')).toBeTruthy()
   })
 })
 

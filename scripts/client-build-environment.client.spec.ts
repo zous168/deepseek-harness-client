@@ -9,6 +9,7 @@ import {
   clientBuildProcessEnvironment,
   readClientBuildRecord,
   repositoryCommitHash,
+  repositoryVersion,
   resolveClientBuildEnvironment,
   writeClientBuildRecord,
 } from './client-build-environment.ts'
@@ -17,6 +18,7 @@ import { clientBundle } from '../packages/client/tsdown.client.ts'
 const root = resolve(import.meta.dirname, '..')
 const PROBE_NAME = 'DSH_CLIENT_BUILD_TEST'
 const COMMIT_HASH = '0123456789abcdef0123456789abcdef01234567'
+const VERSION = '9.9.9-spec'
 const PROBE_KEY = `process.env.${PROBE_NAME}`
 const originalProbe = process.env[PROBE_NAME]
 const roots: string[] = []
@@ -57,6 +59,7 @@ describe('client build environment', () => {
       DSH_CLIENT_BUILD_PROFILE: 'official',
       DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
       DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: VERSION,
     } as const
 
     expect(() => { assertClientBuildEnvironment({ PATH: '/bin', ...expected }, expected) }).not.toThrow()
@@ -74,32 +77,39 @@ describe('client build environment', () => {
       DSH_CLIENT_BUILD_PROFILE: 'local',
       DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
       DSH_CLIENT_TITLE: 'Local title',
+      DSH_CLIENT_VERSION: VERSION,
       DSH_CLIENT_EXTRA: 'local-extra',
+    }
+    const official = {
+      DSH_CLIENT_BUILD_PROFILE: 'official',
+      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
+      DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: VERSION,
     }
 
     expect(resolveClientBuildEnvironment({ DSH_CLIENT_TITLE: 'Local title' })).toEqual({
       DSH_CLIENT_TITLE: 'Local title',
     })
-    expect(resolveClientBuildEnvironment(parent)).toEqual({
-      DSH_CLIENT_BUILD_PROFILE: 'official',
-      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
-      DSH_CLIENT_TITLE: 'DeepSeek Harness',
-    })
+    expect(resolveClientBuildEnvironment(parent)).toEqual(official)
     expect(() => {
       resolveClientBuildEnvironment({ DSH_BUILD_CLIENT_PROFILE: 'official' })
     }).toThrow(/DSH_CLIENT_COMMIT_HASH/)
+    expect(() => {
+      resolveClientBuildEnvironment({
+        DSH_BUILD_CLIENT_PROFILE: 'official',
+        DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
+      })
+    }).toThrow(/DSH_CLIENT_VERSION/)
     expect(() => { resolveClientBuildEnvironment({}, 'unknown') }).toThrow(/unknown client build profile/)
-    expect(clientBuildProcessEnvironment(parent, {
-      DSH_CLIENT_BUILD_PROFILE: 'official',
-      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
-      DSH_CLIENT_TITLE: 'DeepSeek Harness',
-    })).toEqual({
-      PATH: '/bin',
-      DSH_CLIENT_BUILD_PROFILE: 'official',
-      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
-      DSH_CLIENT_TITLE: 'DeepSeek Harness',
-    })
+    expect(clientBuildProcessEnvironment(parent, official)).toEqual({ PATH: '/bin', ...official })
     expect(repositoryCommitHash('/unused', { DSH_CLIENT_COMMIT_HASH: COMMIT_HASH })).toBe(COMMIT_HASH.slice(0, 7))
+    expect(repositoryVersion('/unused', { DSH_CLIENT_VERSION: VERSION })).toBe(VERSION)
+    expect(() => { repositoryVersion('/unused', { DSH_CLIENT_VERSION: '' }) }).toThrow(/must not be empty/)
+    expect(repositoryVersion(root, {})).toMatch(/^\d+\.\d+\.\d+/)
+    const unversioned = mkdtempSync(join(tmpdir(), 'dsh-client-version-'))
+    roots.push(unversioned)
+    write(join(unversioned, 'package.json'), '{"name":"unversioned"}')
+    expect(() => { repositoryVersion(unversioned, {}) }).toThrow(/non-empty string version/)
   })
 
   it('defines only public client values over a non-enumerable fallback', () => {
@@ -151,6 +161,7 @@ describe('client build environment', () => {
       DSH_CLIENT_BUILD_PROFILE: 'official',
       DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7),
       DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: VERSION,
     }
     const official = buildFixture(officialEnvironment)
     const defaultBuild = buildFixture({})

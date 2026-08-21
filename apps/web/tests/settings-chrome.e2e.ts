@@ -29,6 +29,17 @@ const DIALOG_EN_EXPECTED = join(SNAPSHOT_DIR, 'dialog-en.expected.md')
 const PLUGIN_ROW_SELECTOR = '[data-plugin-entry$="ui-settings"]'
 const MODE = webSnapshotMode()
 
+/**
+ * Collapse the General version row's value, which the build embeds and every
+ * release advances; the golden pins that the row reports the build, not which
+ * build produced this run.
+ * @param snapshot - a normalized dialog aria snapshot.
+ * @returns the snapshot with the embedded version tokenized.
+ */
+function withoutBuildVersion(snapshot: string): string {
+  return snapshot.replaceAll(/\d+\.\d+\.\d+[0-9A-Za-z.-]*/gu, '{{version}}')
+}
+
 describe('web e2e: settings modal and General preferences', () => {
   let scaffold: WebScaffold
   let browser: Browser
@@ -91,7 +102,7 @@ describe('web e2e: settings modal and General preferences', () => {
     await page.unroute('**/api/settings.openDocument')
     // Golden of the freshly opened dialog (default zh, General active).
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(DIALOG_EXPECTED, snapshot, MODE)
+    await compareOrRefreshGolden(DIALOG_EXPECTED, withoutBuildVersion(snapshot), MODE)
     // Section switch: aria-current moves (the Models page itself has its own scenario file).
     await dialog.getByRole('button', { name: '模型' }).click()
     await expect.poll(() => dialog.getByRole('button', { name: '模型' }).getAttribute('aria-current'), { timeout: 5_000 }).toBe('true')
@@ -513,7 +524,7 @@ describe('web e2e: settings modal and General preferences', () => {
       // produces. The zh golden above covers the detected-locale surface, so
       // the pair pins both directions of the resolution.
       const snapshot = await captureStableAria(frPage, '[role="dialog"]', fresh.workspaceCwd)
-      await compareOrRefreshGolden(DIALOG_EN_EXPECTED, snapshot, MODE)
+      await compareOrRefreshGolden(DIALOG_EN_EXPECTED, withoutBuildVersion(snapshot), MODE)
       expect(frTripwire.pageErrors).toEqual([])
       expect(frTripwire.warnings).toEqual([])
     } finally {

@@ -8,6 +8,8 @@ The shell ships no onboarding copy of its own — all text arrives from registra
 
 A loopback browser loads the provider's `hasDocument` capability through `settings.describe` and renders **Open configuration file** only when the Host confirms that a provider-owned local document can be prepared. The action sends the pathless, loopback-only `settings.openDocument` request; the Host resolves the provider path again, materializes an absent document, and hands it to a native text editor (`open -t` on macOS, bypassing a browser file association; the desktop file association on Linux and Windows; Windows association after `wslpath -w` translation on WSL). Open failures keep the action available and render a localized error. Reopening the dialog or reconnecting refreshes availability after a transient read failure or Host topology change. Remote browsers never register the action and never issue the privileged settings read.
 
+The shell's one General row is build identity: **Version** reports `DSH_CLIENT_VERSION`, the released version the build embedded in these client artifacts ([build identity](../../../.agents/notes/implemented/feature/2026-08-21-client-version-in-settings.md)). It sorts last so the number reads as a footnote under the preferences a reader can change, and an unbuilt source run says `开发构建` rather than naming a version it does not have.
+
 The Host half registers `ui-onboarding` in the user-settings seam. The welcome step contributed by `ui-settings-models` reads and writes its `welcomeNoticeVersion` through the existing public settings boundary; the shell itself remains policy-free.
 
 ## Model Experience
@@ -20,4 +22,4 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- The General section has no built-in rows; each row appears only when its owning feature plugin is mounted.
+- The General section carries no preference row of its own; every row except Version appears only when its owning feature plugin is mounted.

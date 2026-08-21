@@ -8,6 +8,7 @@ import {
   CLIENT_BUILD_RECORD_PATH,
   clientBuildProcessEnvironment,
   repositoryCommitHash,
+  repositoryVersion,
   resolveClientBuildEnvironment,
   writeClientBuildRecord,
 } from './client-build-environment.ts'
@@ -39,6 +40,7 @@ function main(): void {
   const parentEnvironment = {
     ...process.env,
     DSH_CLIENT_COMMIT_HASH: repositoryCommitHash(root, process.env),
+    DSH_CLIENT_VERSION: repositoryVersion(root, process.env),
   }
   const clientEnvironment = resolveClientBuildEnvironment(parentEnvironment, values.profile)
   const buildEnvironment = clientBuildProcessEnvironment(parentEnvironment, clientEnvironment)
