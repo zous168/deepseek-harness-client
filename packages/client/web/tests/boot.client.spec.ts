@@ -132,4 +132,88 @@ describe('plugin activation', () => {
     expect(container.textContent).toBe('mounted')
     await entry.dispose()
   })
+
+  it('mounts when a later roster entry fails to apply', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const container = document.createElement('div')
+    document.body.append(container)
+    const target = installFacade()
+    win.__DSH_BOOT__ = {
+      rev: 'graph',
+      entries: [
+        { id: MODULES_ID, url: '/modules.js', rev: '1', immediately: true },
+        { id: 'renderer', url: '/renderer.js', rev: '1', immediately: true },
+        { id: 'aws-wechat-console', url: '/optional.js', rev: '1' },
+      ],
+    }
+    const registrations = new Map<string, ClientBundleRegistration>([
+      ['/renderer.js', {
+        id: 'renderer',
+        factory: () => ({
+          apply: (ctx: Context) => {
+            ctx.reflect.provide('uiRenderer', {
+              mount: (element: HTMLElement) => {
+                element.textContent = 'mounted'
+                return () => {}
+              },
+            })
+          },
+        }),
+      }],
+      ['/optional.js', {
+        id: 'aws-wechat-console',
+        factory: () => ({
+          apply: () => {
+            throw new Error('single slot "details" already has a registration at priority 0')
+          },
+        }),
+      }],
+    ])
+    const entry = new AppWebEntry(container, {
+      loadBundle: async (url) => {
+        const registration = registrations.get(url)
+        if (registration === undefined) throw new Error(`missing fixture registration ${url}`)
+        target.load(registration)
+      },
+    })
+    await entry.run()
+    expect(container.textContent).toBe('mounted')
+    expect(error.mock.calls.some(call => String(call[0]).includes('aws-wechat-console'))).toBe(true)
+    await entry.dispose()
+  })
+
+  it('keeps the boot page when an immediately entry fails to apply', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const container = document.createElement('div')
+    document.body.append(container)
+    const target = installFacade()
+    win.__DSH_BOOT__ = {
+      rev: 'graph',
+      entries: [
+        { id: MODULES_ID, url: '/modules.js', rev: '1', immediately: true },
+        { id: 'renderer', url: '/renderer.js', rev: '1', immediately: true },
+      ],
+    }
+    const registrations = new Map<string, ClientBundleRegistration>([
+      ['/renderer.js', {
+        id: 'renderer',
+        factory: () => ({
+          apply: () => {
+            throw new Error('renderer apply failed')
+          },
+        }),
+      }],
+    ])
+    const entry = new AppWebEntry(container, {
+      loadBundle: async (url) => {
+        const registration = registrations.get(url)
+        if (registration === undefined) throw new Error(`missing fixture registration ${url}`)
+        target.load(registration)
+      },
+    })
+    await entry.run()
+    expect(container.textContent).toContain('required')
+    expect(error).toHaveBeenCalled()
+    await entry.dispose()
+  })
 })

@@ -1,11 +1,12 @@
 /**
  * Web boot kernel. It owns only the module system, Cordis loader, and a
  * framework-free boot page. The dynamic UI renderer receives the mount
- * point after every client entry activates.
+ * point after `immediately` shell entries activate; a later roster failure
+ * is logged and does not withhold the mount.
  * @module @deepseek-ai/dsh-client-web/src/boot
  */
 import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
+import Loader, { type Entry } from '@deepseek-ai/cordis-plugin-loader'
 import type {
   BootManifest, ClientModuleCreateOptions, ClientModuleSystem, DshWindow,
 } from '@deepseek-ai/dsh-client-modules/client'
@@ -40,7 +41,8 @@ export class AppWebEntry {
 
   /**
    * Load and activate every client entry, then hand the mount point to the
-   * UI renderer. Plugin failures remain visible on the boot page.
+   * UI renderer. An `immediately` entry that fails stays on the boot page.
+   * A later roster entry that fails is logged; the application still mounts.
    * @returns Resolves after application mount or failure rendering.
    */
   async run(): Promise<void> {
@@ -106,38 +108,71 @@ export class AppWebEntry {
     })
 
     const rows = this.manifest.plugins.map(row => row.id)
+    const required = new Set(this.manifest.plugins.filter(row => row.immediately).map(row => row.id))
     this.page.setTotal(rows.length)
     await prefetching
     await Promise.all(rows.map(async (name) => {
       this.page.setState(name, 'loading')
-      const id = await loader.create({ name })
-      if (loader.resolve(id).fiber === undefined) this.page.setState(name, 'failed')
+      try {
+        const id = await loader.create({ name })
+        if (loader.resolve(id).fiber === undefined && required.has(name)) this.page.setState(name, 'failed')
+      } catch (error: unknown) {
+        console.error(error)
+        if (required.has(name)) this.page.setState(name, 'failed')
+      }
     }))
 
-    await loader.await()
+    try {
+      await loader.await()
+    } catch (error: unknown) {
+      console.error(error)
+    }
     this.assertEntriesActive(ctx)
   }
 
-  /** Reject entries that failed import/apply or still wait on missing services. */
+  /**
+   * Fail boot only when an `immediately` shell entry failed import/apply or
+   * is still waiting on a missing service. Other roster failures are logged.
+   */
   private assertEntriesActive(ctx: Context): void {
-    const failures: string[] = []
+    const required = new Set(this.manifest.plugins.filter(row => row.immediately).map(row => row.id))
+    const requiredFailures: string[] = []
+    const optionalFailures: string[] = []
+    const seen = new Set<string>()
     for (const entry of ctx.loader.entries()) {
       const name = entry.options.name
-      if (entry.fiber === undefined) {
-        failures.push(`${name}: import failed (see console for the import error)`)
-        continue
-      }
-      const state = STATE_LABELS[entry.fiber.state]
-      if (state === 'active') continue
-      if (state === 'pending') {
-        const missing = Object.keys(entry.fiber.inject).filter(service => ctx.get(service) === undefined)
-        failures.push(`${name}: pending (waiting for service${missing.length === 1 ? '' : 's'}: ${missing.join(', ') || 'unknown'})`)
-      } else {
-        failures.push(`${name}: ${state}`)
-      }
+      seen.add(name)
+      const report = this.entryActivationFailure(ctx, entry)
+      if (report === undefined) continue
+      if (required.has(name)) requiredFailures.push(report)
+      else optionalFailures.push(report)
     }
-    if (failures.length > 0) {
-      throw new Error(`web boot: ${String(failures.length)} entr${failures.length === 1 ? 'y' : 'ies'} did not activate\n${failures.join('\n')}`)
+    for (const name of required) {
+      if (!seen.has(name)) requiredFailures.push(`${name}: did not activate`)
     }
+    if (optionalFailures.length > 0) {
+      console.error(`web boot: ${String(optionalFailures.length)} optional entr${optionalFailures.length === 1 ? 'y' : 'ies'} did not activate\n${optionalFailures.join('\n')}`)
+    }
+    if (requiredFailures.length > 0) {
+      throw new Error(`web boot: ${String(requiredFailures.length)} required entr${requiredFailures.length === 1 ? 'y' : 'ies'} did not activate\n${requiredFailures.join('\n')}`)
+    }
+  }
+
+  /**
+   * Describe one loader entry that is not ACTIVE, or `undefined` when it is.
+   * @param ctx - the boot context, used to name missing injects.
+   * @param entry - a created loader row.
+   * @returns a one-line activation report.
+   */
+  private entryActivationFailure(ctx: Context, entry: Entry): string | undefined {
+    const name = entry.options.name
+    if (entry.fiber === undefined) return `${name}: import failed (see console for the import error)`
+    const state = STATE_LABELS[entry.fiber.state]
+    if (state === 'active') return undefined
+    if (state === 'pending') {
+      const missing = Object.keys(entry.fiber.inject).filter(service => ctx.get(service) === undefined)
+      return `${name}: pending (waiting for service${missing.length === 1 ? '' : 's'}: ${missing.join(', ') || 'unknown'})`
+    }
+    return `${name}: ${state}`
   }
 }
